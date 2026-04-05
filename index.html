@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ゲーム一覧</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+  background: #f0ebe3;
+  min-height: 100dvh;
+  padding: 2rem 1rem;
+}
+h1 {
+  text-align: center;
+  color: #3a3a3a;
+  font-size: 1.8rem;
+  margin-bottom: 2rem;
+}
+.games {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.2rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+.game-card {
+  background: white;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.game-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+}
+.game-card .icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+.game-card h2 { font-size: 1.2rem; color: #3a3a3a; margin-bottom: 0.3rem; }
+.game-card p { font-size: 0.9rem; color: #888; }
+</style>
+</head>
+<body>
+<h1>🎮 ゲーム一覧</h1>
+<div class="games">
+  <a class="game-card" href="games/cat-hide/">
+    <div class="icon">🐱</div>
+    <h2>にゃんこどこ？</h2>
+    <p>病院に行きたくないネコを探し出そう！</p>
+  </a>
+</div>
+</body>
+</html>
