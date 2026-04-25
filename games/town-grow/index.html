@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>まちづくり物語</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;user-select:none;-webkit-tap-highlight-color:transparent}
+html,body{overflow:hidden;height:100%;touch-action:none}
+body{font-family:'Hiragino Sans','Meiryo',sans-serif;background:#5b8c3e;width:100vw;height:100dvh;display:flex;flex-direction:column}
+canvas{display:block;width:100%;flex:0 0 42%}
+#ui{flex:1;background:#faf6ee;display:flex;flex-direction:column;overflow-y:auto;position:relative}
+#status{display:flex;justify-content:space-between;padding:8px 14px;background:#fff8e8;border-bottom:2px solid #e6d9b8;font-size:13px;flex-wrap:wrap;gap:4px}
+.stat{white-space:nowrap}
+#panel{flex:1;display:flex;flex-direction:column;justify-content:center;padding:14px 18px;gap:10px}
+#eventText{font-size:15px;line-height:1.7;color:#3a3020;text-align:center;min-height:60px;display:flex;align-items:center;justify-content:center}
+#choices{display:flex;flex-direction:column;gap:8px}
+.choice-btn{background:#fff;border:2px solid #c4b896;border-radius:12px;padding:12px 16px;font-size:14px;color:#3a3020;cursor:pointer;text-align:left;transition:transform .1s,border-color .15s;font-family:inherit}
+.choice-btn:active{transform:scale(.97);border-color:#8a7a50}
+.choice-btn.correct{border-color:#4caf50;background:#e8f5e9;animation:flash .4s}
+.choice-btn.wrong{border-color:#e53935;background:#ffebee;animation:flash .4s}
+.choice-btn:disabled{opacity:.5;cursor:default}
+@keyframes flash{0%,100%{opacity:1}50%{opacity:.5}}
+#result{font-size:14px;text-align:center;line-height:1.6;color:#5a5040;min-height:40px;display:flex;align-items:center;justify-content:center}
+#nextBtn{background:#6b8e4e;color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:15px;cursor:pointer;align-self:center;font-family:inherit;display:none}
+#nextBtn:active{background:#5a7a40}
+/* Title */
+#title{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(250,246,238,.97);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;padding:20px;gap:14px;text-align:center}
+#title.hide{display:none}
+#title h1{font-size:26px;color:#3a5a20}
+#title p{font-size:14px;color:#6a6050;max-width:300px;line-height:1.6}
+.goal-btns{display:flex;flex-direction:column;gap:8px;width:100%;max-width:260px}
+.goal-btn{background:#6b8e4e;color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;cursor:pointer;font-family:inherit}
+.goal-btn:active{background:#5a7a40}
+.goal-btn span{font-size:12px;opacity:.8}
+/* End */
+#endScreen{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(250,246,238,.95);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:20;padding:20px;gap:14px;text-align:center}
+#endScreen.show{display:flex}
+#endScreen h1{font-size:28px}
+#endScreen p{font-size:14px;color:#6a6050}
+#endScreen button{background:#6b8e4e;color:#fff;border:none;border-radius:10px;padding:12px 24px;font-size:15px;cursor:pointer;font-family:inherit}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="ui">
+  <div id="status">
+    <span class="stat">🏠 住民 <b id="popVal">5</b>人</span>
+    <span class="stat">🎯 目標 <b id="goalVal">30</b>人</span>
+    <span class="stat" id="seasonLabel">🌸 春</span>
+    <span class="stat">ターン <b id="turnVal">1</b></span>
+  </div>
+  <div id="panel">
+    <div id="eventText"></div>
+    <div id="choices"></div>
+    <div id="result"></div>
+    <button id="nextBtn">次へ</button>
+  </div>
+  <div id="title">
+    <h1>🏡 まちづくり物語</h1>
+    <p>田舎の小さな町を発展させよう。畑を耕し、森を守り、住民を増やしていこう。</p>
+    <p>目標人数を選んでね：</p>
+    <div class="goal-btns">
+      <button class="goal-btn" onclick="startGame(30)">のんびり <span>（30人）</span></button>
+      <button class="goal-btn" onclick="startGame(60)">ふつう <span>（60人）</span></button>
+      <button class="goal-btn" onclick="startGame(100)">チャレンジ <span>（100人）</span></button>
+    </div>
+  </div>
+  <div id="endScreen">
+    <h1 id="endTitle"></h1>
+    <p id="endText"></p>
+    <button onclick="location.reload()">もう一度</button>
+  </div>
+</div>
+
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+function resize(){
+  const w = window.innerWidth;
+  const h = Math.floor(window.innerHeight * 0.42);
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = w * dpr; cv.height = h * dpr;
+  cv.style.width = w+'px'; cv.style.height = h+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  drawScene();
+}
+window.addEventListener('resize', resize);
+
+const game = {
+  pop: 5, goal: 30, turn: 1, season: 0, started: false,
+  win: false, lose: false, eventIdx: -1, usedEvents: [],
+};
+const seasons = [
+  {name:'春', emoji:'🌸', sky:['#87ceeb','#d4f1ff'], ground:'#6db33f', tree:'#4a9e30', field:'#8bc34a', mt:'#7a9b6a'},
+  {name:'夏', emoji:'☀️', sky:['#4a90d9','#87ceeb'], ground:'#5ba530', tree:'#2e8b20', field:'#7cb342', mt:'#6a8b5a'},
+  {name:'秋', emoji:'🍂', sky:['#d4a76a','#f0d8a8'], ground:'#9b8a40', tree:'#d4770a', field:'#c8a030', mt:'#8a7a50'},
+  {name:'冬', emoji:'❄️', sky:['#b0c4de','#dce8f0'], ground:'#c8d8c0', tree:'#8a8a78', field:'#b0b898', mt:'#bac4bc'},
+];
+
+const events = [
+  {text:'畑にカラスが集まってきた！\n作物が食べられてしまう！',
+    choices:[
+      {text:'🌾 かかしを作って畑を守る', pop:3, msg:'かかしのおかげでカラスが来なくなった！作物が豊作だ！'},
+      {text:'☠️ 毒エサを撒いて追い払う', pop:-999, msg:'毒が畑にも広がり、作物も虫も全滅してしまった...'},
+      {text:'🐦 カラスに少しだけ分けてあげる', pop:1, msg:'カラスは満足して少し減った。共存できそうだ。'},
+    ]},
+  {text:'森で倒れた大木が道をふさいでいる！',
+    choices:[
+      {text:'🤝 みんなで協力して片づける', pop:4, msg:'力を合わせて片づけた！薪もたくさん手に入った！'},
+      {text:'🪓 森の木を全部切り倒して広い道にする', pop:-999, msg:'森が荒れてしまい、動物も虫もいなくなった...'},
+      {text:'🚶 迂回路を作る', pop:1, msg:'遠回りだけど新しい道ができた。'},
+    ]},
+  {text:'井戸の水が出なくなってしまった！',
+    choices:[
+      {text:'🔍 原因を調べて新しい井戸を掘る', pop:4, msg:'きれいな水脈を見つけた！水がたっぷり出るようになった！'},
+      {text:'🏞️ 川から水路を引く', pop:2, msg:'水路ができた！畑にも水をやれるようになった。'},
+      {text:'😩 水は買えばいいと諦める', pop:-999, msg:'住民が水不足に苦しみ、町を離れてしまった...'},
+    ]},
+  {text:'野生の鹿が畑を荒らしている！',
+    choices:[
+      {text:'🏗️ 柵を作って畑を囲む', pop:3, msg:'丈夫な柵で畑を守った！鹿も森で元気に暮らしている。'},
+      {text:'🦌 鹿を全部追い出す', pop:-999, msg:'鹿がいなくなって森のバランスが崩れてしまった...'},
+      {text:'🥕 鹿用のエサ場を森に作る', pop:2, msg:'鹿がエサ場に集まるようになり、畑に来なくなった。'},
+    ]},
+  {text:'大雨で川があふれそうだ！',
+    choices:[
+      {text:'🧱 みんなで土嚢を積んで守る', pop:5, msg:'町を守りきった！団結力が高まった！'},
+      {text:'⛰️ 高台に避難する', pop:1, msg:'全員無事だったが、畑が少し浸水してしまった...'},
+      {text:'🤷 大丈夫だろうと何もしない', pop:-999, msg:'大洪水で畑も家も流されてしまった...'},
+    ]},
+  {text:'旅人が町にやってきた！',
+    choices:[
+      {text:'🍵 歓迎してもてなす', pop:4, msg:'旅人は喜んで町の噂を広めてくれた！新しい住民が来た！'},
+      {text:'🚫 怪しいので追い返す', pop:-999, msg:'旅人は有名な商人だった。悪い噂が広まってしまった...'},
+      {text:'👀 様子を見る', pop:1, msg:'旅人はしばらくして去っていった。'},
+    ]},
+  {text:'花畑の花が枯れ始めている...！',
+    choices:[
+      {text:'💧 原因を調べて水をやる', pop:3, msg:'花畑が元気に復活！蝶や虫も戻ってきた！'},
+      {text:'🌱 新しい花の種をまく', pop:2, msg:'新しい花が咲き始めた。少しずつ回復中。'},
+      {text:'🏚️ 花畑を潰して建物を建てる', pop:-999, msg:'自然がなくなり、住民の心も荒んでしまった...'},
+    ]},
+  {text:'虫が少し増えてきたみたい。',
+    choices:[
+      {text:'🐛 自然のバランスを見守る', pop:2, msg:'虫は自然に落ち着いた。ちょうどいいバランスだ。'},
+      {text:'💀 殺虫剤をたくさん撒く', pop:-999, msg:'畑の作物まで枯れてしまった...花畑も台無しに...'},
+      {text:'🪺 鳥の巣箱を作る', pop:3, msg:'鳥が来て虫を食べてくれた！いい循環ができた！'},
+    ]},
+  {text:'冬が近づいてきた。食料が心配...',
+    choices:[
+      {text:'🫙 みんなで保存食を作る', pop:4, msg:'ジャムや漬物がたくさんできた！冬を乗り越えられる！'},
+      {text:'🍎 森の実をたくさん集める', pop:2, msg:'美味しい実が集まった。なんとか冬を越せそう。'},
+      {text:'💰 隣町から食料を奪う', pop:-999, msg:'隣町との関係が最悪になり、交流が途絶えた...'},
+    ]},
+  {text:'古い橋がボロボロで壊れそう！',
+    choices:[
+      {text:'🌉 みんなで新しい橋を作る', pop:4, msg:'立派な橋が完成！隣町との行き来も楽になった！'},
+      {text:'🔧 応急修理だけする', pop:1, msg:'とりあえず使えるようになった。いつまで持つかな...'},
+      {text:'💣 爆破して川で遊ぶ', pop:-999, msg:'隣町に行けなくなり、物資が届かなくなった...'},
+    ]},
+  {text:'町に風邪が流行りそうだ！',
+    choices:[
+      {text:'🌿 森で薬草を集めて薬を作る', pop:4, msg:'薬のおかげでみんな元気に！森の恵みに感謝！'},
+      {text:'🏥 安静にして看病する', pop:2, msg:'少し時間がかかったけど、みんな回復した。'},
+      {text:'😤 根性で治す！放っておく', pop:-999, msg:'風邪が広がって住民がどんどん倒れてしまった...'},
+    ]},
+  {text:'森でキノコがたくさん見つかった！',
+    choices:[
+      {text:'📖 詳しい人に食べられるか聞く', pop:3, msg:'安全なキノコだけ選んで美味しい料理ができた！'},
+      {text:'😋 全部食べてみる', pop:-999, msg:'毒キノコが混ざっていて大変なことに...！'},
+      {text:'🧺 少しだけ持ち帰って調べる', pop:1, msg:'慎重に調べたら食べられるものもあった。'},
+    ]},
+  {text:'隣町との仲が悪くなってきた...',
+    choices:[
+      {text:'🎪 お祭りを開いて招待する', pop:5, msg:'楽しいお祭りで仲直り！交流が深まった！'},
+      {text:'📜 手紙を書いて気持ちを伝える', pop:2, msg:'手紙で誤解が解けた。少しずつ関係が改善。'},
+      {text:'⚔️ 戦争だ！', pop:-999, msg:'争いで町が荒れてしまった...住民が逃げていった...'},
+    ]},
+  {text:'子どもたちが「退屈だー！」と言っている。',
+    choices:[
+      {text:'📚 学校を作って勉強や遊びを教える', pop:5, msg:'子どもたちが生き生きと学んでいる！町の未来が明るい！'},
+      {text:'🎠 広場に遊び場を作る', pop:3, msg:'子どもたちの笑い声が町に響く！'},
+      {text:'⛏️ 子どもたちを働かせる', pop:-999, msg:'子どもたちが悲しんで、家族が町を去ってしまった...'},
+    ]},
+  {text:'美味しそうな実がなった木を見つけた！',
+    choices:[
+      {text:'🤲 みんなで分け合う', pop:3, msg:'みんな笑顔！分け合うことで絆が深まった！'},
+      {text:'🫙 ジャムにして保存する', pop:2, msg:'美味しいジャムができた！長持ちするぞ！'},
+      {text:'🤑 自分だけで独り占めする', pop:-999, msg:'住民の信頼を失ってしまった...'},
+    ]},
+  {text:'畑に見たことのない花が咲いた！',
+    choices:[
+      {text:'🔬 よく観察して大切に育てる', pop:3, msg:'珍しい花が名物に！見に来る人が増えた！'},
+      {text:'🌸 花の種を集めて花畑を広げる', pop:4, msg:'町じゅうが花でいっぱいに！蝶もたくさん来た！'},
+      {text:'🔥 気持ち悪いので燃やす', pop:-999, msg:'火が畑にも燃え移ってしまった...'},
+    ]},
+  {text:'森の奥からきれいな泉を見つけた！',
+    choices:[
+      {text:'🚰 泉を大切に保護する', pop:4, msg:'きれいな水を守ることで森全体が元気に！'},
+      {text:'🏭 泉の水を全部使って商売する', pop:-999, msg:'泉が枯れてしまい、森が元気をなくした...'},
+      {text:'🗺️ みんなに場所を教える', pop:2, msg:'住民の憩いの場になった。'},
+    ]},
+];
+
+let shuffled = [];
+function nextEvent(){
+  if (shuffled.length === 0){
+    shuffled = events.map((_,i)=>i);
+    for (let i=shuffled.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];
+    }
+  }
+  return shuffled.pop();
+}
+
+function startGame(goal){
+  game.goal = goal; game.pop = 5; game.turn = 1; game.season = 0;
+  game.started = true; game.win = false; game.lose = false;
+  document.getElementById('title').classList.add('hide');
+  refreshUI();
+  drawScene();
+  showEvent();
+}
+
+function refreshUI(){
+  document.getElementById('popVal').textContent = game.pop;
+  document.getElementById('goalVal').textContent = game.goal;
+  document.getElementById('turnVal').textContent = game.turn;
+  const s = seasons[game.season];
+  document.getElementById('seasonLabel').textContent = s.emoji+' '+s.name;
+}
+
+function showEvent(){
+  const idx = nextEvent();
+  game.eventIdx = idx;
+  const ev = events[idx];
+  document.getElementById('eventText').textContent = ev.text;
+  document.getElementById('result').textContent = '';
+  document.getElementById('nextBtn').style.display = 'none';
+  const cd = document.getElementById('choices');
+  cd.innerHTML = '';
+  // Shuffle choice display order
+  const order = [0,1,2];
+  for(let i=2;i>0;i--){const j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
+  order.forEach(ci => {
+    const c = ev.choices[ci];
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.textContent = c.text;
+    btn.addEventListener('click', () => choose(idx, ci, btn));
+    cd.appendChild(btn);
+  });
+}
+
+function choose(evIdx, choiceIdx, btn){
+  const ev = events[evIdx];
+  const c = ev.choices[choiceIdx];
+  const btns = document.querySelectorAll('.choice-btn');
+  btns.forEach(b => {b.disabled = true;});
+  if (c.pop === -999){
+    btn.classList.add('wrong');
+    document.getElementById('result').textContent = c.msg;
+    playSound('lose');
+    setTimeout(()=>{
+      game.lose = true;
+      showEnd(false);
+    }, 1800);
+  } else {
+    btn.classList.add('correct');
+    game.pop += c.pop;
+    document.getElementById('result').textContent = c.msg + ` (住民+${c.pop})`;
+    playSound('good');
+    refreshUI();
+    drawScene();
+    if (game.pop >= game.goal){
+      setTimeout(()=>{
+        game.win = true;
+        playSound('win');
+        showEnd(true);
+      }, 1200);
+    } else {
+      document.getElementById('nextBtn').style.display = 'block';
+    }
+  }
+}
+
+document.getElementById('nextBtn').addEventListener('click', ()=>{
+  game.turn++;
+  game.season = (game.season + 1) % 4;
+  refreshUI();
+  drawScene();
+  showEvent();
+});
+
+function showEnd(won){
+  const es = document.getElementById('endScreen');
+  document.getElementById('endTitle').textContent = won ? '🎉 目標達成！' : '😢 ゲームオーバー';
+  document.getElementById('endText').textContent = won
+    ? `${game.turn}ターンで住民${game.pop}人の町を作った！`
+    : `住民${game.pop}人 / ターン${game.turn}`;
+  es.classList.add('show');
+}
+
+// Sound
+let audioCtx=null;
+function playSound(kind){
+  try{
+    audioCtx=audioCtx||new(window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended')audioCtx.resume();
+    const t=audioCtx.currentTime;
+    const mk=(f,d,type='sine',v=.12)=>{
+      const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+      o.connect(g);g.connect(audioCtx.destination);
+      o.type=type;o.frequency.value=f;
+      g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.01,t+d);
+      o.start(t);o.stop(t+d);
+    };
+    if(kind==='good'){
+      mk(523,.1);setTimeout(()=>mk(659,.1),80);setTimeout(()=>mk(784,.15),160);
+    }else if(kind==='lose'){
+      mk(330,.3,'sawtooth',.14);setTimeout(()=>mk(220,.5,'sawtooth',.14),200);
+    }else if(kind==='win'){
+      [523,659,784,1047].forEach((f,i)=>setTimeout(()=>mk(f,.2,'sine',.14),i*140));
+    }
+  }catch(e){}
+}
+
+// Scene rendering
+function drawScene(){
+  const w = cv.width / (window.devicePixelRatio||1);
+  const h = cv.height / (window.devicePixelRatio||1);
+  const s = seasons[game.season];
+
+  // Sky
+  const skyG = ctx.createLinearGradient(0,0,0,h*.65);
+  skyG.addColorStop(0, s.sky[0]);
+  skyG.addColorStop(1, s.sky[1]);
+  ctx.fillStyle = skyG;
+  ctx.fillRect(0,0,w,h);
+
+  // Sun/Moon
+  if(game.season===3){
+    ctx.beginPath();ctx.arc(w*.8,h*.15,22,0,Math.PI*2);
+    ctx.fillStyle='#e0e8f0';ctx.fill();
+  }else{
+    ctx.beginPath();ctx.arc(w*.82,h*.14,20,0,Math.PI*2);
+    ctx.fillStyle='#ffe066';ctx.fill();
+    // rays
+    ctx.strokeStyle='rgba(255,224,102,.3)';ctx.lineWidth=2;
+    for(let i=0;i<8;i++){
+      const a=i*Math.PI/4;
+      ctx.beginPath();ctx.moveTo(w*.82+Math.cos(a)*24,h*.14+Math.sin(a)*24);
+      ctx.lineTo(w*.82+Math.cos(a)*34,h*.14+Math.sin(a)*34);ctx.stroke();
+    }
+  }
+
+  // Clouds
+  const drawCloud=(cx,cy,sz)=>{
+    ctx.fillStyle='rgba(255,255,255,.7)';
+    ctx.beginPath();ctx.arc(cx,cy,sz,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(cx-sz*.7,cy+sz*.2,sz*.7,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(cx+sz*.8,cy+sz*.15,sz*.75,0,Math.PI*2);ctx.fill();
+  };
+  drawCloud(w*.2,h*.12,14);
+  drawCloud(w*.55,h*.08,12);
+  if(game.season===3) drawCloud(w*.4,h*.18,10);
+
+  // Mountains
+  ctx.fillStyle=s.mt;
+  ctx.beginPath();ctx.moveTo(0,h*.55);ctx.lineTo(w*.15,h*.28);ctx.lineTo(w*.32,h*.55);ctx.fill();
+  ctx.beginPath();ctx.moveTo(w*.2,h*.55);ctx.lineTo(w*.42,h*.22);ctx.lineTo(w*.6,h*.55);ctx.fill();
+  ctx.fillStyle=game.season===3?'#d0d8d0':'#6a9a5a';
+  ctx.beginPath();ctx.moveTo(w*.5,h*.55);ctx.lineTo(w*.7,h*.3);ctx.lineTo(w*.9,h*.55);ctx.fill();
+  // Snow on winter mountains
+  if(game.season===3){
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.moveTo(w*.42-6,h*.24);ctx.lineTo(w*.42,h*.22);ctx.lineTo(w*.42+6,h*.24);ctx.fill();
+    ctx.beginPath();ctx.moveTo(w*.7-5,h*.32);ctx.lineTo(w*.7,h*.3);ctx.lineTo(w*.7+5,h*.32);ctx.fill();
+  }
+
+  // Ground
+  ctx.fillStyle=s.ground;
+  ctx.fillRect(0,h*.55,w,h*.45);
+
+  // River
+  ctx.strokeStyle='#4a90c8';ctx.lineWidth=6;
+  ctx.beginPath();ctx.moveTo(0,h*.72);
+  ctx.quadraticCurveTo(w*.3,h*.68,w*.5,h*.75);
+  ctx.quadraticCurveTo(w*.7,h*.82,w,h*.76);
+  ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,.3)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(w*.1,h*.71);
+  ctx.quadraticCurveTo(w*.3,h*.67,w*.48,h*.74);ctx.stroke();
+
+  // Fields (left side)
+  const fieldY=h*.58;
+  ctx.fillStyle=s.field;
+  ctx.fillRect(w*.05,fieldY,w*.3,h*.12);
+  ctx.strokeStyle='rgba(100,70,20,.3)';ctx.lineWidth=1;
+  for(let i=0;i<6;i++){
+    const lx=w*.05+i*(w*.3/6);
+    ctx.beginPath();ctx.moveTo(lx,fieldY);ctx.lineTo(lx,fieldY+h*.12);ctx.stroke();
+  }
+  // Crops
+  if(game.season!==3){
+    ctx.fillStyle=game.season===2?'#d4a020':'#3a8a20';
+    for(let i=0;i<6;i++){
+      for(let j=0;j<3;j++){
+        const cx=w*.07+i*(w*.3/6);
+        const cy=fieldY+4+j*(h*.12/3);
+        ctx.fillRect(cx,cy,6,game.season===1?10:6);
+      }
+    }
+  }
+
+  // Forest (right side)
+  const drawTree=(tx,ty,sz,color)=>{
+    ctx.fillStyle='#8B6914';
+    ctx.fillRect(tx-2,ty,4,sz*.7);
+    ctx.beginPath();ctx.arc(tx,ty,sz,0,Math.PI*2);
+    ctx.fillStyle=color;ctx.fill();
+  };
+  const treeColor=s.tree;
+  drawTree(w*.68,h*.48,14,treeColor);
+  drawTree(w*.75,h*.45,16,treeColor);
+  drawTree(w*.82,h*.50,13,treeColor);
+  drawTree(w*.88,h*.47,15,treeColor);
+  drawTree(w*.72,h*.53,12,treeColor);
+  drawTree(w*.85,h*.55,11,treeColor);
+  drawTree(w*.92,h*.53,13,treeColor);
+
+  // Fruits on trees (spring/summer/autumn)
+  if(game.season!==3){
+    const fruitColor=game.season===2?'#e85020':'#e04040';
+    [[w*.75,h*.42],[w*.82,h*.47],[w*.88,h*.44],[w*.68,h*.46]].forEach(([fx,fy])=>{
+      ctx.beginPath();ctx.arc(fx+3,fy+2,3,0,Math.PI*2);
+      ctx.fillStyle=fruitColor;ctx.fill();
+      ctx.beginPath();ctx.arc(fx-4,fy+5,3,0,Math.PI*2);
+      ctx.fill();
+    });
+  }
+
+  // Flower field (in/near forest)
+  if(game.season===0||game.season===1){
+    const colors=['#ff69b4','#ff6347','#ffd700','#da70d6','#87ceeb'];
+    for(let i=0;i<25;i++){
+      const fx=w*.62+Math.random()*w*.3;
+      const fy=h*.58+Math.random()*h*.1;
+      ctx.beginPath();ctx.arc(fx,fy,2.5,0,Math.PI*2);
+      ctx.fillStyle=colors[i%colors.length];ctx.fill();
+    }
+  }
+
+  // Bugs/butterflies (not too many)
+  if(game.season!==3){
+    const bugT=Date.now()/1000;
+    for(let i=0;i<4;i++){
+      const bx=w*.6+Math.sin(bugT+i*2)*w*.15+w*.1;
+      const by=h*.5+Math.cos(bugT*1.3+i*3)*h*.06;
+      ctx.fillStyle=i<2?'#fff':'#ffd700';
+      ctx.beginPath();ctx.arc(bx,by,2,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(bx+3,by-1,1.5,0,Math.PI*2);ctx.fill();
+    }
+  }
+
+  // Houses (based on population)
+  const houseCount = Math.min(12, Math.max(1, Math.floor(game.pop / 5)));
+  const housePositions = [
+    [.22,.78],[.30,.80],[.14,.82],[.38,.78],[.26,.84],
+    [.42,.82],[.18,.76],[.34,.76],[.46,.80],[.10,.80],
+    [.50,.78],[.40,.84],
+  ];
+  for(let i=0;i<houseCount;i++){
+    const [hx,hy]=housePositions[i];
+    const x=w*hx, y=h*hy;
+    // Wall
+    ctx.fillStyle='#f5e6c8';
+    ctx.fillRect(x-10,y-10,20,14);
+    // Roof
+    ctx.fillStyle='#c0522a';
+    ctx.beginPath();ctx.moveTo(x-13,y-10);ctx.lineTo(x,y-22);ctx.lineTo(x+13,y-10);ctx.fill();
+    // Door
+    ctx.fillStyle='#8B6914';
+    ctx.fillRect(x-3,y-4,6,8);
+    // Window
+    if(i%2===0){
+      ctx.fillStyle='#ffe066';
+      ctx.fillRect(x+5,y-8,4,4);
+    }
+  }
+
+  // People (small dots near houses)
+  ctx.fillStyle='#5a4030';
+  const peopleCount = Math.min(8, Math.floor(game.pop / 8));
+  for(let i=0;i<peopleCount;i++){
+    const px=w*(.15+i*.05)+Math.sin(Date.now()/2000+i)*6;
+    const py=h*(.88+Math.cos(Date.now()/2500+i*2)*.02);
+    ctx.beginPath();ctx.arc(px,py,3,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(px,py-5,2.5,0,Math.PI*2);
+    ctx.fillStyle='#f0d0a0';ctx.fill();
+    ctx.fillStyle='#5a4030';
+  }
+
+  // Snow particles in winter
+  if(game.season===3){
+    ctx.fillStyle='rgba(255,255,255,.7)';
+    for(let i=0;i<20;i++){
+      const sx=(w*(.1+i*.045)+Date.now()/40*(.5+i*.1))%w;
+      const sy=(h*(.05+i*.04)+Date.now()/30*(.3+i*.08))%h;
+      ctx.beginPath();ctx.arc(sx,sy,1.5,0,Math.PI*2);ctx.fill();
+    }
+  }
+}
+
+// Animate butterflies and snow
+function animLoop(){
+  if(game.started && !game.win && !game.lose) drawScene();
+  requestAnimationFrame(animLoop);
+}
+
+resize();
+drawScene();
+requestAnimationFrame(animLoop);
+</script>
+</body>
+</html>
