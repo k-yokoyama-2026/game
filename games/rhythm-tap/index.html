@@ -259,6 +259,7 @@ html, body {
   <button id="retry-btn">もう一回！</button>
 </div>
 
+<script src="../_shared/audio.js"></script>
 <script src="core.js"></script>
 <script>
 // ===== Constants =====
@@ -349,6 +350,16 @@ function startGame() {
   }, 800);
 }
 
+// ===== Sound (拍に合わせて鳴らす) =====
+const SFX = {
+  tap(combo) { AudioFX.tone(523 * Math.pow(2, Math.min(combo, 8) / 12), 0.1, 'triangle', 0.16); AudioFX.tone(1046, 0.08, 'sine', 0.06, 0.03); },
+  miss() { AudioFX.tone(150, 0.18, 'sawtooth', 0.14); },
+  beat() { AudioFX.tone(1200, 0.03, 'sine', 0.05); },
+  fever() { [523, 659, 784, 1047].forEach((f, i) => AudioFX.tone(f, 0.12, 'square', 0.12, i * 0.05)); },
+  result() { [523, 659, 784, 1047, 1319].forEach((f, i) => AudioFX.tone(f, 0.2, 'triangle', 0.16, i * 0.1)); },
+};
+let beatCount = 0;
+
 function startTimers() {
   // Countdown timer
   gameTimer = setInterval(() => {
@@ -360,11 +371,21 @@ function startTimers() {
     updateHUD();
   }, 250);
 
-  // Spawn items
-  scheduleNextSpawn();
+  // 拍ごとに：パルス＋クリック音＋拍に乗せてアイテム出現
+  beatCount = 0;
+  beatTimer = setInterval(onBeat, BEAT_MS);
+}
 
-  // Beat pulse
-  beatTimer = setInterval(beatPulse, BEAT_MS);
+function onBeat() {
+  beatPulse();
+  if (!running) return;
+  SFX.beat();
+  beatCount++;
+  const progress = (GAME_DURATION - timeLeft) / GAME_DURATION;
+  // 序盤は1拍おき → 終盤は毎拍、さらに時々2個（拍に同期して出現）
+  const chance = 0.55 + progress * 0.45;
+  if (beatCount % 2 === 0 || Math.random() < chance) spawnItem();
+  if (progress > 0.6 && Math.random() < (progress - 0.6)) spawnItem();
 }
 
 function scheduleNextSpawn() {
@@ -539,10 +560,12 @@ function tapItem(el) {
     score += totalPts;
     combo++;
     if (combo > maxCombo) maxCombo = combo;
+    SFX.tap(combo);
     // フィーバー突入（コンボ10の倍数）
     if (RhythmCore.feverShouldStart(combo)) {
       feverEnd = Date.now() + RhythmCore.FEVER_MS;
       showStageBanner('🔥 フィーバー！ 2倍！');
+      SFX.fever();
     }
 
     showScorePopup(cx, cy, '+' + totalPts, feverActive() ? '#ffd93d' : color);
@@ -560,6 +583,7 @@ function tapItem(el) {
     score += pts;
     combo = 0;
     feverEnd = 0; // ミスでフィーバー終了
+    SFX.miss();
 
     showScorePopup(cx, cy, pts.toString(), '#ff4444');
     showTapBurst(cx, cy, '#ff4444');
@@ -653,6 +677,7 @@ function endGame() {
 let rhythmBest = parseInt(localStorage.getItem('rhythm_best') || '0', 10);
 function showResult() {
   showScreen(resultScreen);
+  SFX.result();
 
   document.getElementById('result-score').textContent = score + '点';
   const isBest = score > rhythmBest;
@@ -673,6 +698,7 @@ function showResult() {
 
 // ===== Prevent context menu on long press =====
 document.addEventListener('contextmenu', e => e.preventDefault());
+AudioFX.mountButton();
 </script>
 </body>
 </html>
