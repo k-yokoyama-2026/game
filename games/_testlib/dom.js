@@ -103,6 +103,7 @@ function makeContext() {
     clear: () => { for (const k in store) delete store[k]; },
   };
   sandbox.navigator = { vibrate: () => {}, userAgent: 'node-test' };
+  sandbox.performance = { now: () => Date.now() };
   sandbox.requestAnimationFrame = () => 0;
   sandbox.cancelAnimationFrame = () => {};
   sandbox.devicePixelRatio = 1; sandbox.innerWidth = 375; sandbox.innerHeight = 667;

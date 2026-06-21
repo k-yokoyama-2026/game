@@ -250,6 +250,7 @@ canvas {
   </div>
 </div>
 
+<script src="core.js"></script>
 <script>
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
@@ -299,6 +300,8 @@ const state = {
   detect: 0,
   dialogueTime: 0,
   invulnTime: 0,
+  kiraSpent: 0,
+  startTime: 0,
   win: false, lose: false,
 };
 
@@ -349,13 +352,9 @@ function genWorld(){
       spoke: false,
     });
   }
+  state.startTime = Date.now();
   // Hints
-  const dirOf = (px, py) => {
-    const dx = px - WORLD_W/2;
-    const dy = py - WORLD_H/2;
-    if (Math.abs(dy) > Math.abs(dx)) return dy < 0 ? '北' : '南';
-    return dx < 0 ? '西' : '東';
-  };
+  const dirOf = (px, py) => GemCore.hintDir(px, py, WORLD_W, WORLD_H);
   state.npcs.forEach(npc => {
     const all = [...state.gems, ...state.stars];
     const t = pick(all);
@@ -464,12 +463,7 @@ refreshCharBox();
 
 // Crystal buttons
 const crystalsDiv = document.getElementById('crystals');
-const crystalDefs = [
-  {id:1, emoji:'👁️', cost:1, name:'透視'},
-  {id:2, emoji:'⚔️', cost:1, name:'攻撃'},
-  {id:3, emoji:'💥', cost:2, name:'強化攻撃'},
-  {id:4, emoji:'💖', cost:3, name:'万能'},
-];
+const crystalDefs = GemCore.crystalDefs;
 crystalDefs.forEach(c => {
   const b = document.createElement('div');
   b.className = 'cbtn';
@@ -492,6 +486,7 @@ function useCrystal(id){
   const def = crystalDefs.find(c => c.id===id);
   if (state.kira < def.cost) { showMessage('キラが足りない'); return; }
   state.kira -= def.cost;
+  state.kiraSpent += def.cost;
   if (id === 1){
     state.reveal = 6;
     showMessage('👁️ 透視発動！');
@@ -663,7 +658,7 @@ function update(dt){
   });
   state.kiras.forEach(k => {
     if (!k.taken && dist(state.x, state.y, k.x, k.y) < 28){
-      if (state.kira < 16){
+      if (GemCore.canPickKira(state.kira)){
         k.taken = true; state.kira++;
         playSound('pickup'); showMessage('✨ キラ+1');
         refreshHud();
@@ -757,7 +752,7 @@ function update(dt){
 
 function checkWin(){
   refreshHud();
-  if (state.collected >= 10){
+  if (GemCore.isWin(state.collected)){
     state.win = true;
     playSound('win');
     showEnd(true);
@@ -767,9 +762,15 @@ function checkWin(){
 function showEnd(won){
   const es = document.getElementById('endScreen');
   document.getElementById('endTitle').textContent = won ? '🎉 クリア！' : '😵 やられた...';
-  document.getElementById('endText').textContent = won
-    ? `${state.collected}個の宝石・星のかけらを集めた！`
-    : `集めた数: ${state.collected}個`;
+  if (won){
+    const sec = Math.round((Date.now() - state.startTime) / 1000);
+    const stars = GemCore.clearStars(state.hp, state.maxHp, state.kiraSpent, sec);
+    const starStr = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
+    document.getElementById('endText').innerHTML =
+      `${starStr}<br>${state.collected}個あつめた！<br>タイム ${sec}秒 ・ キラ消費 ${state.kiraSpent}`;
+  } else {
+    document.getElementById('endText').textContent = `集めた数: ${state.collected}個`;
+  }
   es.classList.add('show');
 }
 
