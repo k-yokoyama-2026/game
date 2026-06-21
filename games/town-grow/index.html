@@ -73,6 +73,7 @@ canvas{display:block;width:100%;flex:0 0 42%}
   </div>
 </div>
 
+<script src="core.js"></script>
 <script>
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
@@ -218,7 +219,7 @@ function nextEvent(){
 
 function startGame(goal){
   game.goal = goal; game.pop = 5; game.turn = 1; game.season = 0;
-  game.started = true; game.win = false; game.lose = false;
+  game.started = true; game.win = false; game.lose = false; game.streak = 0;
   document.getElementById('title').classList.add('hide');
   refreshUI();
   drawScene();
@@ -260,8 +261,10 @@ function choose(evIdx, choiceIdx, btn){
   const c = ev.choices[choiceIdx];
   const btns = document.querySelectorAll('.choice-btn');
   btns.forEach(b => {b.disabled = true;});
-  if (c.pop === -999){
+  const res = TownCore.resolveChoice(ev.choices, choiceIdx, game.streak || 0);
+  if (res.disaster){
     btn.classList.add('wrong');
+    game.streak = 0;
     document.getElementById('result').textContent = c.msg;
     playSound('lose');
     setTimeout(()=>{
@@ -270,12 +273,15 @@ function choose(evIdx, choiceIdx, btn){
     }, 1800);
   } else {
     btn.classList.add('correct');
-    game.pop += c.pop;
-    document.getElementById('result').textContent = c.msg + ` (住民+${c.pop})`;
+    game.pop += res.popDelta;
+    game.streak = res.newStreak;
+    let txt = c.msg + ` (住民+${res.popDelta})`;
+    if (res.isBest && res.bonus > 0) txt += ` 🔥さいぜん連鎖×${res.newStreak}! +${res.bonus}`;
+    document.getElementById('result').textContent = txt;
     playSound('good');
     refreshUI();
     drawScene();
-    if (game.pop >= game.goal){
+    if (TownCore.isWin(game.pop, game.goal)){
       setTimeout(()=>{
         game.win = true;
         playSound('win');
