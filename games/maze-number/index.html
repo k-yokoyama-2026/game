@@ -123,6 +123,34 @@ const levelDisp = document.getElementById('levelDisp');
 const numberDisp = document.getElementById('numberDisp');
 const dpad = document.getElementById('dpad');
 
+// --- Sound (Web Audioで合成・音源ファイル不要) ---
+let actx = null;
+function audio() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (actx && actx.state === 'suspended') actx.resume();
+  return actx;
+}
+function beep(freq, dur, type, gain, when) {
+  const a = audio(); if (!a) return;
+  const t = a.currentTime + (when || 0);
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type || 'sine'; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(gain, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+const SFX = {
+  step() { beep(180, 0.04, 'square', 0.05); },
+  grow(num) { beep(440 + Math.min(num, 40) * 8, 0.1, 'triangle', 0.14); beep(660, 0.1, 'sine', 0.07, 0.04); },
+  bad() { beep(160, 0.25, 'sawtooth', 0.16); beep(90, 0.3, 'sine', 0.14, 0.05); },
+  caught() { [294, 233, 175].forEach((f, i) => beep(f, 0.16, 'sawtooth', 0.16, i * 0.07)); },
+  clear() { [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.18, 'triangle', 0.16, i * 0.09)); },
+  allclear() { [523, 659, 784, 1047, 1319, 1047, 1319].forEach((f, i) => beep(f, 0.2, 'triangle', 0.18, i * 0.12)); },
+};
+window.addEventListener('pointerdown', () => audio(), { passive: true });
+window.addEventListener('keydown', () => audio(), { passive: true });
+
 let maze, player, numbers, level, playerNum, goalPos;
 let enemies = [], enemyEvery = 2, moveCount = 0;
 let cols, rows, cellSize;
@@ -271,10 +299,11 @@ function movePlayer(dx, dy) {
   if (maze[ny][nx] === WALL) return;
 
   player = [nx, ny];
+  SFX.step();
 
   // プレイヤーが敵マスに入った＝捕まる
   for (const en of enemies) {
-    if (en.x === nx && en.y === ny) { gameState = 'gameover'; showEnemyGameOver(); return; }
+    if (en.x === nx && en.y === ny) { gameState = 'gameover'; SFX.caught(); showEnemyGameOver(); return; }
   }
 
   // Check number collision
@@ -284,12 +313,14 @@ function movePlayer(dx, dy) {
       if (n.val >= playerNum) {
         // Game over
         gameState = 'gameover';
+        SFX.bad();
         showGameOver(n.val);
         return;
       } else {
         playerNum += n.val;
         n.alive = false;
         numbersCollected++;
+        SFX.grow(n.val);
         updateUI();
       }
     }
@@ -298,6 +329,7 @@ function movePlayer(dx, dy) {
   // Check goal
   if (nx === goalPos[0] && ny === goalPos[1]) {
     gameState = 'clear';
+    SFX.clear();
     showLevelClear();
     return;
   }
@@ -357,6 +389,7 @@ function showLevelClear() {
 }
 
 function showAllClear() {
+  SFX.allclear();
   dpad.classList.add('hidden');
   overlay.classList.remove('hidden');
   overlay.innerHTML = `
