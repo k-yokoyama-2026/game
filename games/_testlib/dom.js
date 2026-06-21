@@ -146,6 +146,7 @@ function loadHtml(htmlPath) {
   let m;
   while ((m = re.exec(html)) !== null) {
     if (m[1]) {
+      if (/^https?:\/\//.test(m[1])) continue; // CDN等の外部スクリプトはスキップ
       const code = fs.readFileSync(path.join(dir, m[1]), 'utf8');
       harness.run(code);
     } else if (m[2].trim()) {
