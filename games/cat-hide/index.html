@@ -444,6 +444,17 @@ function resetGame() {
   document.getElementById('title-screen').style.display = 'flex';
 }
 
+function makeHint(label) {
+  const templates = [
+    `${label}が怪しい…`,
+    `${label}のあたりが気になる`,
+    `${label}、なんだか動いた気が…`,
+    `${label}の陰をのぞいてみて`,
+    `${label}にしっぽが見えたかも？`,
+  ];
+  return templates[Math.floor(Math.random() * templates.length)];
+}
+
 function loadLevel(idx) {
   currentLevel = idx;
   const level = levels[idx];
@@ -452,15 +463,23 @@ function loadLevel(idx) {
   room.style.background = level.bg;
 
   document.getElementById('level-display').textContent = `レベル ${idx + 1} / ${levels.length}`;
-  document.getElementById('hint-text').textContent = level.hint;
 
-  // Place the hidden cat
+  // 隠れ場所を毎回ランダムに決める（動かせる＝重くないオブジェクトから選ぶ）
+  const candidates = level.objects
+    .map((o, i) => ({ o, i }))
+    .filter(x => !x.o.heavy);
+  const hiderIndex = candidates[Math.floor(Math.random() * candidates.length)].i;
+  const hider = level.objects[hiderIndex];
+
+  document.getElementById('hint-text').textContent = makeHint(hider.label);
+
+  // Place the hidden cat behind the chosen object
   const cat = document.createElement('div');
   cat.className = 'cat';
   cat.id = 'hidden-cat';
   cat.textContent = level.catEmoji;
-  cat.style.left = level.catPos.x + '%';
-  cat.style.top = level.catPos.y + '%';
+  cat.style.left = hider.x + '%';
+  cat.style.top = hider.y + '%';
   cat.style.transform = 'translate(-50%, -50%)';
   room.appendChild(cat);
 
@@ -476,7 +495,7 @@ function loadLevel(idx) {
     el.style.transform = 'translate(-50%, -50%)';
     el.dataset.index = i;
     el.dataset.heavy = obj.heavy;
-    el.dataset.hidesCat = obj.hidesCat || false;
+    el.dataset.hidesCat = (i === hiderIndex);
 
     const emoji = document.createElement('span');
     emoji.className = 'emoji';
@@ -522,7 +541,7 @@ function handleTap(el, obj, level) {
   el.style.opacity = '0.3';
   el.style.pointerEvents = 'none';
 
-  if (obj.hidesCat) {
+  if (el.dataset.hidesCat === 'true') {
     setTimeout(() => {
       const cat = document.getElementById('hidden-cat');
       cat.classList.add('found');
