@@ -274,6 +274,7 @@ body {
   <button onclick="resetGame()">もう一回あそぶ</button>
 </div>
 
+<script src="core.js"></script>
 <script>
 const levels = [
   {
@@ -431,10 +432,13 @@ const levels = [
 ];
 
 let currentLevel = 0;
+let wrongTaps = 0;
+let totalScore = 0;
 
 function startGame() {
   document.getElementById('title-screen').style.display = 'none';
   document.getElementById('game-screen').style.display = 'flex';
+  totalScore = 0;
   loadLevel(0);
 }
 
@@ -444,19 +448,11 @@ function resetGame() {
   document.getElementById('title-screen').style.display = 'flex';
 }
 
-function makeHint(label) {
-  const templates = [
-    `${label}が怪しい…`,
-    `${label}のあたりが気になる`,
-    `${label}、なんだか動いた気が…`,
-    `${label}の陰をのぞいてみて`,
-    `${label}にしっぽが見えたかも？`,
-  ];
-  return templates[Math.floor(Math.random() * templates.length)];
-}
+function makeHint(label) { return CatCore.makeHint(label); }
 
 function loadLevel(idx) {
   currentLevel = idx;
+  wrongTaps = 0;
   const level = levels[idx];
   const room = document.getElementById('room');
   room.innerHTML = '';
@@ -464,11 +460,8 @@ function loadLevel(idx) {
 
   document.getElementById('level-display').textContent = `レベル ${idx + 1} / ${levels.length}`;
 
-  // 隠れ場所を毎回ランダムに決める（動かせる＝重くないオブジェクトから選ぶ）
-  const candidates = level.objects
-    .map((o, i) => ({ o, i }))
-    .filter(x => !x.o.heavy);
-  const hiderIndex = candidates[Math.floor(Math.random() * candidates.length)].i;
+  // 隠れ場所を毎回ランダムに決める（コアが軽いオブジェクトから選ぶ）
+  const hiderIndex = CatCore.pickHider(level.objects, Math.random);
   const hider = level.objects[hiderIndex];
 
   document.getElementById('hint-text').textContent = makeHint(hider.label);
@@ -547,12 +540,20 @@ function handleTap(el, obj, level) {
       cat.classList.add('found');
       setTimeout(() => showFoundOverlay(level), 600);
     }, 300);
+  } else {
+    // ハズレめくり（★評価が下がる）
+    wrongTaps++;
   }
 }
 
 function showFoundOverlay(level) {
   document.getElementById('found-cat-emoji').textContent = level.catEmoji;
-  document.getElementById('found-message').textContent = level.foundMsg;
+  const stars = CatCore.starsForWrongTaps(wrongTaps);
+  const pts = CatCore.levelPoints(stars);
+  totalScore += pts;
+  const starStr = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
+  document.getElementById('found-message').innerHTML =
+    `${level.foundMsg}<br>${starStr} +${pts}点（合計 ${totalScore}点）`;
 
   if (currentLevel >= levels.length - 1) {
     document.getElementById('found-btn').textContent = 'おしまい';
@@ -568,6 +569,8 @@ function nextLevel() {
 
   if (currentLevel >= levels.length - 1) {
     document.getElementById('game-screen').style.display = 'none';
+    const cp = document.querySelector('#clear-screen p');
+    if (cp) cp.innerHTML = `ぜんぶ見つけた！<br>ネコちゃんは無事に病院へ…<br><b>合計 ${totalScore}点</b></p>`;
     document.getElementById('clear-screen').style.display = 'flex';
     return;
   }

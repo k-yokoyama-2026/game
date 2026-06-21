@@ -30,7 +30,9 @@ class El {
     this._doc = doc; this.tagName = (tag || 'div').toUpperCase();
     this.children = []; this.style = makeStyle();
     this._cls = new Set(); this._text = ''; this._html = '';
-    this.onclick = null; this.dataset = {}; this.parentNode = null;
+    this.onclick = null; this.parentNode = null;
+    // 実DOM同様 dataset の値は文字列化される
+    this.dataset = new Proxy({}, { set(t, k, v) { t[k] = v == null ? '' : String(v); return true; }, get(t, k) { return t[k]; } });
     this.width = 0; this.height = 0; this.value = '';
   }
   get classList() {
