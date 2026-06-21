@@ -163,6 +163,35 @@ canvas { display: block; }
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
+// --- Sound (Web Audioで合成・音源ファイル不要) ---
+let actx = null;
+function audio() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (actx && actx.state === 'suspended') actx.resume();
+  return actx;
+}
+function beep(freq, dur, type, gain, when) {
+  const a = audio(); if (!a) return;
+  const t = a.currentTime + (when || 0);
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type || 'sine'; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(gain, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+const SFX = {
+  hit(combo) { beep(420 + Math.min(combo, 12) * 30, 0.09, 'square', 0.13); },
+  tick() { beep(260, 0.05, 'triangle', 0.08); },
+  boss() { [330, 262, 196].forEach((f, i) => beep(f, 0.18, 'sawtooth', 0.16, i * 0.07)); beep(90, 0.3, 'sine', 0.2, 0.05); },
+  power() { [523, 659, 880].forEach((f, i) => beep(f, 0.12, 'sine', 0.12, i * 0.05)); },
+  damage() { beep(160, 0.22, 'sawtooth', 0.16); beep(90, 0.3, 'sine', 0.14, 0.04); },
+  clear() { [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.18, 'triangle', 0.16, i * 0.09)); },
+  over() { [392, 330, 262, 175].forEach((f, i) => beep(f, 0.34, 'triangle', 0.18, i * 0.18)); },
+};
+window.addEventListener('pointerdown', () => audio(), { passive: true });
+window.addEventListener('touchstart', () => audio(), { passive: true });
+
 // --- Sizing ---
 function resize() {
   canvas.width = window.innerWidth;
@@ -354,11 +383,13 @@ function handleTap(px, py) {
       if (t.hp <= 0) {
         const pts = addScore(ThiefCore.thiefBaseScore(t.type));
         addCombo();
+        if (t.type === 'boss') SFX.boss(); else SFX.hit(combo);
         addParticles(t.x, t.y, '💥', t.type === 'boss' ? 10 : 4);
         addParticles(t.x, t.y, t.type === 'boss' ? '🎉' : '⭐', t.type === 'boss' ? 6 : 2);
         thieves.splice(i, 1);
         caughtCount++;
       } else {
+        SFX.tick();
         addParticles(t.x, t.y, '💫', 2);
       }
       return;
@@ -368,6 +399,7 @@ function handleTap(px, py) {
 
 function activatePowerup(p) {
   const notice = document.getElementById('powerup-notice');
+  SFX.power();
   addParticles(p.x, p.y, '🌟', 6);
   if (p.type === 'freeze') {
     freezeTimer = 180;
@@ -631,6 +663,7 @@ function update() {
       thieves.splice(i, 1);
       caughtCount++; // counts toward level completion
       lives--;
+      SFX.damage();
       shakeTimer = 15;
       damageFlashTimer = 20;
       addParticles(houseX(), houseY(), '💔', 3);
@@ -736,6 +769,7 @@ function startLevel(lv) {
 
 function levelClear() {
   state = 'levelclear';
+  SFX.clear();
   const bonus = level * 200;
   score += bonus;
 
@@ -764,6 +798,7 @@ function levelClear() {
 
 function gameOver() {
   state = 'gameover';
+  SFX.over();
   if (score > highScore) {
     highScore = score;
     localStorage.setItem('catchThiefHigh', String(highScore));
