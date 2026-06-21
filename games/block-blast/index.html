@@ -227,6 +227,18 @@ body {
 #over h2 { font-size: 2rem; }
 #over .fs { font-size: 1.1rem; color: #b3b0d8; }
 #over .fs b { color: #ffd45e; font-size: 1.6rem; }
+#over .record { font-size: 1.2rem; font-weight: 800; color: #ffd45e; animation: recordPop 0.6s ease; }
+@keyframes recordPop { 0%{ transform: scale(0.3); opacity: 0; } 60%{ transform: scale(1.2); } 100%{ transform: scale(1); opacity: 1; } }
+#title {
+  position: fixed; inset: 0; z-index: 110;
+  background: radial-gradient(circle at 50% 30%, #3b3a6b, #15142a 75%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1rem; text-align: center; padding: 2rem;
+}
+#title.hide { display: none; }
+#title h1 { font-size: 2.4rem; }
+#title .how { max-width: 320px; color: #b3b0d8; font-size: 0.95rem; line-height: 1.8; background: rgba(255,255,255,0.06); border-radius: 1rem; padding: 1rem 1.2rem; }
+#title .how b { color: #ffd45e; }
 button.btn {
   margin-top: 0.5rem;
   padding: 0.8rem 2rem;
@@ -267,8 +279,21 @@ button.btn:active { transform: translateY(2px); }
 
 <div id="over">
   <h2>ゲームオーバー</h2>
+  <div class="record" id="recordMsg" style="display:none">🎉 新記録！</div>
   <div class="fs">スコア <b id="finalScore">0</b></div>
   <button class="btn" id="restart">もう一度</button>
+</div>
+
+<div id="title">
+  <h1>🧩 ブロックブラスト</h1>
+  <div class="how">
+    3つのブロックを <b>ドラッグ</b> して盤に置こう。<br>
+    タテ・ヨコの列がそろうと <b>消えて得点</b>！<br>
+    連続で消すと <b>🔥れんさ</b> ボーナス。<br>
+    どれも置けなくなったら ゲームオーバー。<br>
+    💡ヒントで置き場所の評価も見られるよ。
+  </div>
+  <button class="btn" id="startBtn">スタート</button>
 </div>
 
 <a class="home" href="../../">← ゲーム一覧へ</a>
@@ -713,7 +738,9 @@ function checkGameOver(){
   // ライン消去アニメ後の確実な判定のため少し遅延
   setTimeout(()=>{
     if(!anyMovePossible()){
-      if(score>best){ best=score; localStorage.setItem('blockblast_best',best); bestEl.textContent=best; }
+      const isRecord = score > best && score > 0;
+      if(isRecord){ best=score; localStorage.setItem('blockblast_best',best); bestEl.textContent=best; }
+      document.getElementById('recordMsg').style.display = isRecord ? 'block' : 'none';
       document.getElementById('finalScore').textContent=score;
       document.getElementById('over').classList.add('show');
       sndGameOver();
@@ -722,8 +749,17 @@ function checkGameOver(){
   }, 320);
 }
 
-document.getElementById('restart').addEventListener('click', newGame);
+document.getElementById('restart').addEventListener('click', () => {
+  document.getElementById('over').classList.remove('show');
+  newGame();
+});
+document.getElementById('startBtn').addEventListener('click', () => {
+  audio(); // 最初のタップで音を起こす
+  document.getElementById('title').classList.add('hide');
+  newGame();
+});
 
+// 盤は最初から用意（タイトルは上に重ねて表示）
 newGame();
 </script>
 </body>
