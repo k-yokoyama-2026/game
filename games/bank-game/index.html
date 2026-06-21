@@ -176,6 +176,33 @@ button:active{transform:scale(.96)}
 <script>
 "use strict";
 
+/* ===== SOUND (Web Audioで合成・音源ファイル不要) ===== */
+let actx = null;
+function audio(){
+  if(!actx){ try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  if(actx && actx.state==='suspended') actx.resume();
+  return actx;
+}
+function beep(freq,dur,type,gain,when){
+  const a=audio(); if(!a) return;
+  const t=a.currentTime+(when||0);
+  const o=a.createOscillator(), g=a.createGain();
+  o.type=type||'sine'; o.frequency.value=freq;
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.linearRampToValueAtTime(gain,t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t+dur+0.02);
+}
+const SFX={
+  coin(){ beep(880,0.08,'square',0.1); beep(1175,0.1,'square',0.08,0.05); },
+  reject(){ beep(220,0.12,'sine',0.08); },
+  turn(){ beep(523,0.1,'triangle',0.1); beep(392,0.12,'triangle',0.08,0.06); },
+  alarm(){ [880,660,880,660].forEach((f,i)=>beep(f,0.14,'sawtooth',0.14,i*0.12)); },
+  win(){ [523,659,784,1047,1319].forEach((f,i)=>beep(f,0.22,'triangle',0.16,i*0.12)); },
+  lose(){ [392,330,262,175].forEach((f,i)=>beep(f,0.34,'triangle',0.16,i*0.18)); },
+};
+window.addEventListener('pointerdown', ()=>audio(), { passive:true });
+
 /* ===== GAME STATE ===== */
 const G = {
   month: 1,
@@ -306,6 +333,7 @@ function acceptCustomer(idx){
   }
   G.pendingCustomers.splice(idx,1);
   G.reputation = Math.min(5, G.reputation + 0.1);
+  SFX.coin();
   renderGame();
 }
 
@@ -315,6 +343,7 @@ function rejectCustomer(idx){
   addLog(`${c.name}の${c.type==="deposit"?"預金":"融資"}申請を拒否`);
   G.pendingCustomers.splice(idx,1);
   G.reputation = Math.max(0, G.reputation - 0.15);
+  SFX.reject();
   renderGame();
 }
 
@@ -374,6 +403,7 @@ function nextTurn(){
     G.deposits -= withdraw;
     G.cash -= withdraw;
     G.reputation = Math.max(0, G.reputation - 0.5);
+    SFX.alarm();
     addLog(`🏃 取り付け騒ぎ！預金者が ¥${fmt(withdraw)} を引き出した（現金不足）`);
   }
 
@@ -395,6 +425,7 @@ function nextTurn(){
   if(G.depositRate < 0.5) G.reputation = Math.max(0, G.reputation - 0.2);
 
   G.month++;
+  SFX.turn();
 
   // Check end conditions
   const assets = G.cash + G.loans;
@@ -499,6 +530,7 @@ function startGame(){
 }
 
 function endGame(won){
+  if(won) SFX.win(); else SFX.lose();
   const assets = G.cash + G.loans;
   document.getElementById("result-icon").textContent = won ? "🏆" : "💸";
   document.getElementById("result-title").textContent = won ? "経営成功！" : "破産...";
