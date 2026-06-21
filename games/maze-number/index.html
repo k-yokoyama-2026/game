@@ -140,6 +140,9 @@ window.addEventListener('keydown', () => audio(), { passive: true });
 
 let maze, player, numbers, level, playerNum, goalPos;
 let enemies = [], enemyEvery = 2, moveCount = 0;
+const BEST_KEY = 'maze_best';
+let best = parseInt(localStorage.getItem(BEST_KEY) || '0', 10);
+function updateBest(v) { if (v > best) { best = v; localStorage.setItem(BEST_KEY, String(best)); } }
 let cols, rows, cellSize;
 let gameState = 'title'; // title, playing, gameover, clear, allclear
 let animFrame;
@@ -276,6 +279,7 @@ function nextLevel() {
 function updateUI() {
   levelDisp.textContent = `レベル ${level} / 25`;
   numberDisp.textContent = `自分: ${playerNum}`;
+  updateBest(playerNum);
 }
 
 function movePlayer(dx, dy) {
@@ -344,7 +348,7 @@ function showEnemyGameOver() {
   overlay.innerHTML = `
     <h1 style="color:#e04060">つかまった！</h1>
     <p>おに <b style="font-size:28px">👹</b> につかまった！</p>
-    <p class="score-display">自分の数字: ${playerNum}<br>到達レベル: ${level}</p>
+    <p class="score-display">自分の数字: ${playerNum}<br>到達レベル: ${level}<br>最高記録: ${best}</p>
     <button class="btn-retry" onclick="startGame()">リトライ</button>
     <br>
     <button class="btn-title" onclick="showTitle()">タイトルへ</button>
@@ -357,7 +361,7 @@ function showGameOver(hitNum) {
   overlay.innerHTML = `
     <h1 style="color:#e04060">ゲームオーバー</h1>
     <p>数字 <b style="color:#e04060;font-size:32px">${hitNum}</b> にぶつかった!</p>
-    <p class="score-display">自分の数字: ${playerNum}<br>到達レベル: ${level}</p>
+    <p class="score-display">自分の数字: ${playerNum}<br>到達レベル: ${level}<br>最高記録: ${best}</p>
     <button class="btn-retry" onclick="startGame()">リトライ</button>
     <br>
     <button class="btn-title" onclick="showTitle()">タイトルへ</button>
@@ -397,6 +401,7 @@ function showTitle() {
   overlay.innerHTML = `
     <h1 style="color:#f0c040">数字迷路</h1>
     <p class="subtitle">迷路を進んで数字を集めよう!</p>
+    ${best > 0 ? `<p class="score-display">最高記録: ${best}</p>` : ''}
     <p>自分の数字は <b style="color:#40f080">2</b> からスタート<br>
     自分より<b style="color:#40f080">小さい数字</b>を取ると、その分パワーアップ!<br>
     自分より<b style="color:#e04060">大きい数字</b>に当たるとゲームオーバー<br><br>

@@ -33,6 +33,7 @@ threw = false;
 try { for (let i = 0; i < 14; i++) { ctx.nextTurn(); for (let k = 0; k < 2; k++) ctx.acceptCustomer(0); } } catch (e) { threw = true; console.error(e); }
 ok(!threw, '12ヶ月以上回しても例外が出ない');
 
+ok(ctx.localStorage.getItem('bank_best') !== null, '自己ベスト資産が永続化される');
 console.log('\n=====================================');
 console.log(`  SMOKE PASS: ${pass}  FAIL: ${fail}`);
 console.log('=====================================');

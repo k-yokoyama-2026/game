@@ -517,9 +517,11 @@ function startGame(){
   showScreen("game-screen");
 }
 
+let bankBest = parseInt(localStorage.getItem('bank_best') || '0', 10);
 function endGame(won){
   if(won) SFX.win(); else SFX.lose();
   const assets = G.cash + G.loans;
+  if(assets > bankBest){ bankBest = assets; localStorage.setItem('bank_best', String(bankBest)); }
   document.getElementById("result-icon").textContent = won ? "🏆" : "💸";
   document.getElementById("result-title").textContent = won ? "経営成功！" : "破産...";
   document.getElementById("result-desc").textContent = won
@@ -532,6 +534,7 @@ function endGame(won){
     {label:"利息支払合計",value:fmtYen(G.interestPaid)},
     {label:"融資件数",value:G.borrowerCount+"件"},
     {label:"不良債権",value:fmtYen(G.defaultedLoans)},
+    {label:"自己ベスト資産",value:fmtYen(bankBest)},
   ].map(s=>`<div class="end-stat"><div class="label">${s.label}</div><div class="value">${s.value}</div></div>`).join("");
   showScreen("end-screen");
 }

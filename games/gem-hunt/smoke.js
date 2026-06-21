@@ -27,6 +27,7 @@ try { ctx.showEnd(true); } catch (e) { threw = true; console.error(e); }
 ok(!threw, 'showEndで例外が出ない');
 ok(/⭐|☆/.test(doc.getElementById('endText').innerHTML), '★評価が表示される: ' + doc.getElementById('endText').innerHTML.replace(/<[^>]+>/g, ' '));
 
+ok(ctx.localStorage.getItem('gem_best_time') !== null, '最速タイムが永続化される');
 console.log('\n=====================================');
 console.log(`  SMOKE PASS: ${pass}  FAIL: ${fail}`);
 console.log('=====================================');

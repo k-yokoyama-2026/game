@@ -32,6 +32,7 @@ try {
 } catch (e) { threw = true; console.error(e); }
 ok(!threw, '敵ありレベルでも例外が出ない');
 
+ok(ctx.localStorage.getItem('maze_best') !== null, '最高記録が永続化される');
 console.log('\n=====================================');
 console.log(`  SMOKE PASS: ${pass}  FAIL: ${fail}`);
 console.log('=====================================');

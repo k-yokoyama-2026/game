@@ -650,10 +650,13 @@ function endGame() {
   setTimeout(showResult, 1000);
 }
 
+let rhythmBest = parseInt(localStorage.getItem('rhythm_best') || '0', 10);
 function showResult() {
   showScreen(resultScreen);
 
   document.getElementById('result-score').textContent = score + '点';
+  const isBest = score > rhythmBest;
+  if (isBest) { rhythmBest = score; localStorage.setItem('rhythm_best', String(rhythmBest)); }
 
   const accuracy = totalTaps > 0 ? Math.round(goodTaps / totalTaps * 100) : 0;
   document.getElementById('result-details').innerHTML =
@@ -661,7 +664,8 @@ function showResult() {
     `成功: ${goodTaps} / 失敗: ${badTaps}<br>` +
     `見逃し: ${missedItems}<br>` +
     `最大コンボ: ${maxCombo}<br>` +
-    `正確率: ${accuracy}%`;
+    `正確率: ${accuracy}%<br>` +
+    `ベストスコア: ${rhythmBest}点${isBest ? ' 🎉新記録!' : ''}`;
 
   const r = RhythmCore.rank(score);
   document.getElementById('result-rank').textContent = r.emoji + ' ' + r.rank + 'ランク';

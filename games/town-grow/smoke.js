@@ -38,6 +38,7 @@ try { ctx.choose(0, 1, fakeBtn()); H.fireTimeouts(); } catch (e) { threw = true;
 ok(!threw, '災害選択で例外が出ない');
 ok(/ゲームオーバー/.test(doc.getElementById('endTitle').textContent), 'ゲームオーバー画面: ' + doc.getElementById('endTitle').textContent);
 
+ok(ctx.localStorage.getItem('town_best') !== null, '最高人口が永続化される');
 console.log('\n=====================================');
 console.log(`  SMOKE PASS: ${pass}  FAIL: ${fail}`);
 console.log('=====================================');

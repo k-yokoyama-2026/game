@@ -768,8 +768,12 @@ function showEnd(won){
     const sec = Math.round((Date.now() - state.startTime) / 1000);
     const stars = GemCore.clearStars(state.hp, state.maxHp, state.kiraSpent, sec);
     const starStr = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
+    const prev = parseInt(localStorage.getItem('gem_best_time') || '0', 10);
+    const isBest = prev === 0 || sec < prev;
+    if (isBest) localStorage.setItem('gem_best_time', String(sec));
+    const bestSec = isBest ? sec : prev;
     document.getElementById('endText').innerHTML =
-      `${starStr}<br>${state.collected}個あつめた！<br>タイム ${sec}秒 ・ キラ消費 ${state.kiraSpent}`;
+      `${starStr}<br>${state.collected}個あつめた！<br>タイム ${sec}秒 ・ キラ消費 ${state.kiraSpent}<br>最速タイム: ${bestSec}秒${isBest ? ' 🎉新記録!' : ''}`;
   } else {
     document.getElementById('endText').textContent = `集めた数: ${state.collected}個`;
   }

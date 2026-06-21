@@ -302,12 +302,14 @@ document.getElementById('nextBtn').addEventListener('click', ()=>{
   showEvent();
 });
 
+let townBest = parseInt(localStorage.getItem('town_best') || '0', 10);
 function showEnd(won){
   const es = document.getElementById('endScreen');
+  if(game.pop > townBest){ townBest = game.pop; localStorage.setItem('town_best', String(townBest)); }
   document.getElementById('endTitle').textContent = won ? '🎉 目標達成！' : '😢 ゲームオーバー';
-  document.getElementById('endText').textContent = won
+  document.getElementById('endText').innerHTML = (won
     ? `${game.turn}ターンで住民${game.pop}人の町を作った！`
-    : `住民${game.pop}人 / ターン${game.turn}`;
+    : `住民${game.pop}人 / ターン${game.turn}`) + `<br>最高人口: ${townBest}人`;
   es.classList.add('show');
 }
 

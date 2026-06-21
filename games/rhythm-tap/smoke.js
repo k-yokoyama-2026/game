@@ -43,6 +43,7 @@ try { ctx.showResult(); } catch (e) { threw = true; console.error(e); }
 ok(!threw, '結果表示で例外が出ない');
 ok(/ランク/.test(doc.getElementById('result-rank').textContent), 'ランクが表示される: ' + doc.getElementById('result-rank').textContent);
 
+ok(ctx.localStorage.getItem('rhythm_best') !== null, 'ベストスコアが永続化される');
 console.log('\n=====================================');
 console.log(`  SMOKE PASS: ${pass}  FAIL: ${fail}`);
 console.log('=====================================');
