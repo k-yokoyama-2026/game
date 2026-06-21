@@ -84,8 +84,17 @@ body {
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="../_shared/audio.js"></script>
 <script src="core.js"></script>
 <script>
+// --- サウンド ---
+function beep(freq, dur, type, gain, when) { AudioFX.tone(freq, dur, type, gain, when); }
+const SFX = {
+  collect() { [523, 659, 784].forEach((f, i) => beep(f, 0.14, 'triangle', 0.16, i * 0.06)); },
+  combo(n) { const base = 660 + Math.min(n, 8) * 40; beep(base, 0.12, 'square', 0.12); beep(base * 1.5, 0.1, 'sine', 0.1, 0.05); },
+  clear() { [523, 659, 784, 1047, 1319].forEach((f, i) => beep(f, 0.2, 'triangle', 0.17, i * 0.1)); },
+};
+
 // 八事日赤駅 周辺のチェックポイント（暫定座標・編集可）
 const CHECKPOINTS = [
   { name: '八事日赤駅',       ic: '🚉', lat: 35.1356, lng: 136.9588, points: 100 },
@@ -144,10 +153,12 @@ function handlePosition(lat, lng) {
     state.lastTime = res.now;
     const cp = CHECKPOINTS[res.index];
     showToast(`${cp.ic} ${cp.name} 到達！ +${res.points}点`);
+    SFX.collect();
+    if (res.combo >= 2) SFX.combo(res.combo);
     if (hasMap() && cpMarkers[res.index]) cpMarkers[res.index].setOpacity(0.5);
     updateHUD();
     renderList(lat, lng);
-    if (res.allDone) showClear();
+    if (res.allDone) { SFX.clear(); showClear(); }
   }
 }
 
@@ -222,6 +233,7 @@ $('testBtn').addEventListener('click', toggleTestMode);
 initMap();
 updateHUD();
 renderList();
+AudioFX.mountButton();
 </script>
 </body>
 </html>
