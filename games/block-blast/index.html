@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ブロックブラスト</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { overflow: hidden; height: 100%; }
+body {
+  font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+  background: radial-gradient(circle at 50% 0%, #3b3a6b, #1a1930 70%);
+  min-height: 100dvh;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem 0.8rem 1.4rem;
+  touch-action: none;
+  user-select: none;
+}
+.top {
+  width: 100%;
+  max-width: 460px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 0.8rem;
+}
+.score-box { text-align: left; }
+.score-box .label { font-size: 0.7rem; color: #b3b0d8; letter-spacing: 0.1em; }
+.score-box .val { font-size: 2rem; font-weight: 800; line-height: 1; }
+.best-box { text-align: right; }
+.best-box .label { font-size: 0.7rem; color: #b3b0d8; letter-spacing: 0.1em; }
+.best-box .val { font-size: 1.3rem; font-weight: 700; color: #ffd45e; }
+
+#board {
+  position: relative;
+  width: min(92vw, 460px);
+  aspect-ratio: 1 / 1;
+  background: rgba(255,255,255,0.05);
+  border-radius: 14px;
+  padding: 6px;
+  display: grid;
+  gap: 4px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4), inset 0 0 0 2px rgba(255,255,255,0.06);
+}
+.cell {
+  border-radius: 6px;
+  background: rgba(255,255,255,0.06);
+  transition: background 0.08s;
+}
+.cell.filled { box-shadow: inset 0 -3px 0 rgba(0,0,0,0.25), inset 0 2px 2px rgba(255,255,255,0.25); }
+.cell.hint { background: rgba(255,255,255,0.22); }
+.cell.bad { background: rgba(255,80,80,0.28); }
+.cell.clearing { animation: pop 0.32s ease forwards; }
+@keyframes pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.18); filter: brightness(1.6); }
+  100% { transform: scale(0); opacity: 0; }
+}
+
+#tray {
+  width: min(92vw, 460px);
+  margin-top: 1rem;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 96px;
+}
+.piece {
+  display: grid;
+  gap: 3px;
+  cursor: grab;
+  transition: transform 0.12s, opacity 0.2s;
+}
+.piece.used { opacity: 0.15; pointer-events: none; }
+.piece.dragging { opacity: 0; }
+.piece .pc {
+  width: var(--pc, 22px);
+  height: var(--pc, 22px);
+  border-radius: 5px;
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,0.25), inset 0 2px 2px rgba(255,255,255,0.25);
+}
+.piece .empty { width: var(--pc, 22px); height: var(--pc, 22px); }
+
+#drag {
+  position: fixed;
+  left: 0; top: 0;
+  pointer-events: none;
+  display: grid;
+  gap: 4px;
+  z-index: 50;
+  filter: drop-shadow(0 8px 12px rgba(0,0,0,0.5));
+  display: none;
+}
+#drag .pc { width: var(--dc, 40px); height: var(--dc, 40px); border-radius: 6px;
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,0.25), inset 0 2px 2px rgba(255,255,255,0.25); }
+#drag .empty { width: var(--dc, 40px); height: var(--dc, 40px); }
+
+#combo {
+  position: fixed;
+  top: 38%;
+  left: 50%;
+  transform: translate(-50%,-50%) scale(0.4);
+  font-size: 2.4rem;
+  font-weight: 900;
+  color: #ffd45e;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.6);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 60;
+}
+#combo.show { animation: combo 0.9s ease forwards; }
+@keyframes combo {
+  0% { opacity: 0; transform: translate(-50%,-50%) scale(0.4); }
+  25% { opacity: 1; transform: translate(-50%,-50%) scale(1.15); }
+  70% { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%,-60%) scale(1); }
+}
+
+#over {
+  position: fixed;
+  inset: 0;
+  background: rgba(10,9,25,0.86);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+}
+#over.show { display: flex; }
+#over h2 { font-size: 2rem; }
+#over .fs { font-size: 1.1rem; color: #b3b0d8; }
+#over .fs b { color: #ffd45e; font-size: 1.6rem; }
+button.btn {
+  margin-top: 0.5rem;
+  padding: 0.8rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(180deg,#7c79ff,#5a57e0);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(90,87,224,0.5);
+}
+button.btn:active { transform: translateY(2px); }
+.home { margin-top: 1rem; font-size: 0.85rem; color: #b3b0d8; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="score-box"><div class="label">SCORE</div><div class="val" id="score">0</div></div>
+  <div class="best-box"><div class="label">BEST</div><div class="val" id="best">0</div></div>
+</div>
+
+<div id="board"></div>
+<div id="tray"></div>
+<div id="drag"></div>
+<div id="combo"></div>
+
+<div id="over">
+  <h2>ゲームオーバー</h2>
+  <div class="fs">スコア <b id="finalScore">0</b></div>
+  <button class="btn" id="restart">もう一度</button>
+</div>
+
+<a class="home" href="../../">← ゲーム一覧へ</a>
+
+<script>
+const N = 8;
+const board = document.getElementById('board');
+const tray = document.getElementById('tray');
+const dragEl = document.getElementById('drag');
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
+const comboEl = document.getElementById('combo');
+
+const COLORS = ['#ff6b6b','#ffa94d','#ffd43b','#69db7c','#4dabf7','#9775fa','#f783ac','#3bc9db'];
+
+// ピース定義（相対座標）
+const SHAPES = [
+  [[0,0]],                                   // 1
+  [[0,0],[0,1]],                             // 2 横
+  [[0,0],[1,0]],                             // 2 縦
+  [[0,0],[0,1],[0,2]],                       // 3 横
+  [[0,0],[1,0],[2,0]],                       // 3 縦
+  [[0,0],[0,1],[0,2],[0,3]],                 // 4 横
+  [[0,0],[1,0],[2,0],[3,0]],                 // 4 縦
+  [[0,0],[0,1],[0,2],[0,3],[0,4]],           // 5 横
+  [[0,0],[1,0],[2,0],[3,0],[4,0]],           // 5 縦
+  [[0,0],[0,1],[1,0],[1,1]],                 // 2x2
+  [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2]],     // 2x3
+  [[0,0],[0,1],[1,0],[1,1],[2,0],[2,1]],     // 3x2
+  [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1],[2,2]], // 3x3
+  [[0,0],[1,0],[1,1]],                       // L小
+  [[0,1],[1,0],[1,1]],
+  [[0,0],[0,1],[1,1]],
+  [[0,0],[0,1],[1,0]],
+  [[0,0],[1,0],[2,0],[2,1]],                 // L
+  [[0,1],[1,1],[2,1],[2,0]],                 // J
+  [[0,0],[0,1],[0,2],[1,0]],
+  [[0,0],[0,1],[0,2],[1,2]],
+  [[0,0],[1,0],[1,1],[2,1]],                 // S/Z
+  [[0,1],[1,0],[1,1],[2,0]],
+  [[0,0],[0,1],[1,1],[1,2]],
+  [[1,0],[1,1],[0,1],[0,2]],
+  [[0,0],[0,1],[0,2],[1,1]],                 // T
+  [[0,1],[1,0],[1,1],[2,1]],
+];
+
+let grid, score, best, pieces, cells;
+
+best = parseInt(localStorage.getItem('blockblast_best') || '0', 10);
+bestEl.textContent = best;
+
+function normalize(shape){
+  const minR = Math.min(...shape.map(s=>s[0]));
+  const minC = Math.min(...shape.map(s=>s[1]));
+  return shape.map(([r,c])=>[r-minR,c-minC]);
+}
+function dims(shape){
+  return [Math.max(...shape.map(s=>s[0]))+1, Math.max(...shape.map(s=>s[1]))+1];
+}
+
+function buildBoard(){
+  board.style.gridTemplateColumns = `repeat(${N}, 1fr)`;
+  board.style.gridTemplateRows = `repeat(${N}, 1fr)`;
+  board.innerHTML = '';
+  cells = [];
+  for(let r=0;r<N;r++){
+    cells[r]=[];
+    for(let c=0;c<N;c++){
+      const d = document.createElement('div');
+      d.className='cell';
+      board.appendChild(d);
+      cells[r][c]=d;
+    }
+  }
+}
+
+function newGame(){
+  grid = Array.from({length:N},()=>Array(N).fill(null));
+  score = 0;
+  scoreEl.textContent = 0;
+  document.getElementById('over').classList.remove('show');
+  buildBoard();
+  refillPieces();
+  render();
+}
+
+function render(){
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    const d=cells[r][c];
+    d.className='cell';
+    if(grid[r][c]){ d.classList.add('filled'); d.style.background=grid[r][c]; }
+    else d.style.background='';
+  }
+}
+
+function refillPieces(){
+  pieces = [];
+  for(let i=0;i<3;i++){
+    const shape = normalize(SHAPES[Math.floor(Math.random()*SHAPES.length)]);
+    pieces.push({ shape, color: COLORS[Math.floor(Math.random()*COLORS.length)], used:false });
+  }
+  renderTray();
+}
+
+function renderTray(){
+  tray.innerHTML='';
+  pieces.forEach((p,idx)=>{
+    const [rows,colsN]=dims(p.shape);
+    const el=document.createElement('div');
+    el.className='piece'+(p.used?' used':'');
+    el.style.gridTemplateColumns=`repeat(${colsN},auto)`;
+    el.style.setProperty('--pc', Math.min(22, 80/Math.max(rows,colsN))+'px');
+    const set=new Set(p.shape.map(s=>s[0]+','+s[1]));
+    for(let r=0;r<rows;r++)for(let c=0;c<colsN;c++){
+      const cell=document.createElement('div');
+      if(set.has(r+','+c)){ cell.className='pc'; cell.style.background=p.color; }
+      else cell.className='empty';
+      el.appendChild(cell);
+    }
+    if(!p.used) attachDrag(el, idx);
+    tray.appendChild(el);
+  });
+}
+
+// ---- ドラッグ操作 ----
+let drag = null;
+
+function attachDrag(el, idx){
+  el.addEventListener('pointerdown', e=>{
+    if(pieces[idx].used) return;
+    e.preventDefault();
+    startDrag(idx, el, e);
+  });
+}
+
+function startDrag(idx, el, e){
+  const p = pieces[idx];
+  const [rows,colsN]=dims(p.shape);
+  const cellSize = cells[0][0].getBoundingClientRect().width;
+  const gap = 4;
+  drag = { idx, shape:p.shape, color:p.color, el, cellSize, rows, colsN };
+
+  dragEl.style.setProperty('--dc', cellSize+'px');
+  dragEl.style.gap = gap+'px';
+  dragEl.style.gridTemplateColumns=`repeat(${colsN},${cellSize}px)`;
+  dragEl.innerHTML='';
+  const set=new Set(p.shape.map(s=>s[0]+','+s[1]));
+  for(let r=0;r<rows;r++)for(let c=0;c<colsN;c++){
+    const cell=document.createElement('div');
+    if(set.has(r+','+c)){ cell.className='pc'; cell.style.background=p.color; }
+    else cell.className='empty';
+    dragEl.appendChild(cell);
+  }
+  dragEl.style.display='grid';
+  el.classList.add('dragging');
+  moveDrag(e);
+  window.addEventListener('pointermove', moveDrag);
+  window.addEventListener('pointerup', endDrag);
+}
+
+function dragOrigin(e){
+  // ピース左上をポインタの上方に配置（指で隠れないよう）
+  const w = drag.colsN*drag.cellSize + (drag.colsN-1)*4;
+  const h = drag.rows*drag.cellSize + (drag.rows-1)*4;
+  return { x: e.clientX - w/2, y: e.clientY - h - drag.cellSize*0.6 };
+}
+
+function cellAt(e){
+  const o = dragOrigin(e);
+  const b = board.getBoundingClientRect();
+  const pad = 6, gap = 4;
+  const innerW = b.width - pad*2;
+  const step = (innerW + gap)/N;
+  // ピース左上セルの中心
+  const cx = o.x + drag.cellSize/2;
+  const cy = o.y + drag.cellSize/2;
+  const c = Math.round((cx - b.left - pad - drag.cellSize/2)/step);
+  const r = Math.round((cy - b.top - pad - drag.cellSize/2)/step);
+  return {r, c};
+}
+
+function moveDrag(e){
+  const o = dragOrigin(e);
+  dragEl.style.transform = `translate(${o.x}px,${o.y}px)`;
+  clearHints();
+  const {r,c} = cellAt(e);
+  const ok = canPlace(drag.shape, r, c);
+  drag.target = ok ? {r,c} : null;
+  for(const [dr,dc] of drag.shape){
+    const rr=r+dr, cc=c+dc;
+    if(rr>=0&&rr<N&&cc>=0&&cc<N){
+      cells[rr][cc].classList.add(ok?'hint':'bad');
+    }
+  }
+}
+
+function clearHints(){
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++)
+    cells[r][c].classList.remove('hint','bad');
+}
+
+function endDrag(e){
+  window.removeEventListener('pointermove', moveDrag);
+  window.removeEventListener('pointerup', endDrag);
+  dragEl.style.display='none';
+  clearHints();
+  if(drag){
+    drag.el.classList.remove('dragging');
+    if(drag.target){
+      place(drag.idx, drag.target.r, drag.target.c);
+    }
+  }
+  drag = null;
+}
+
+function canPlace(shape, r, c){
+  for(const [dr,dc] of shape){
+    const rr=r+dr, cc=c+dc;
+    if(rr<0||rr>=N||cc<0||cc>=N) return false;
+    if(grid[rr][cc]) return false;
+  }
+  return true;
+}
+
+function place(idx, r, c){
+  const p = pieces[idx];
+  for(const [dr,dc] of p.shape) grid[r+dr][c+dc]=p.color;
+  score += p.shape.length;
+  p.used = true;
+  render();
+  renderTray();
+  resolveLines();
+  scoreEl.textContent = score;
+  if(pieces.every(x=>x.used)) refillPieces();
+  checkGameOver();
+}
+
+function resolveLines(){
+  const fullRows=[], fullCols=[];
+  for(let r=0;r<N;r++) if(grid[r].every(v=>v)) fullRows.push(r);
+  for(let c=0;c<N;c++){ let f=true; for(let r=0;r<N;r++) if(!grid[r][c]){f=false;break;} if(f) fullCols.push(c); }
+  const lines = fullRows.length + fullCols.length;
+  if(lines===0) return;
+
+  const toClear = new Set();
+  fullRows.forEach(r=>{ for(let c=0;c<N;c++) toClear.add(r+','+c); });
+  fullCols.forEach(c=>{ for(let r=0;r<N;r++) toClear.add(r+','+c); });
+
+  toClear.forEach(k=>{
+    const [r,c]=k.split(',').map(Number);
+    cells[r][c].classList.add('clearing');
+    grid[r][c]=null;
+  });
+
+  // スコア: 1列=10、複数列はコンボ倍率
+  score += lines*10 + (lines-1)*5*lines;
+  scoreEl.textContent = score;
+  if(lines>=2) showCombo(lines);
+
+  setTimeout(()=>render(), 300);
+}
+
+function showCombo(lines){
+  comboEl.textContent = lines>=3 ? `${lines}コンボ！🔥` : `${lines}コンボ！`;
+  comboEl.classList.remove('show');
+  void comboEl.offsetWidth;
+  comboEl.classList.add('show');
+}
+
+function anyMovePossible(){
+  for(const p of pieces){
+    if(p.used) continue;
+    for(let r=0;r<N;r++)for(let c=0;c<N;c++)
+      if(canPlace(p.shape,r,c)) return true;
+  }
+  return false;
+}
+
+function checkGameOver(){
+  // ライン消去アニメ後の確実な判定のため少し遅延
+  setTimeout(()=>{
+    if(!anyMovePossible()){
+      if(score>best){ best=score; localStorage.setItem('blockblast_best',best); bestEl.textContent=best; }
+      document.getElementById('finalScore').textContent=score;
+      document.getElementById('over').classList.add('show');
+    }
+  }, 320);
+}
+
+document.getElementById('restart').addEventListener('click', newGame);
+
+newGame();
+</script>
+</body>
+</html>
