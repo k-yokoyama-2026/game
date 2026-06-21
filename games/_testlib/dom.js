@@ -99,7 +99,14 @@ function makeContext() {
   sandbox.requestAnimationFrame = () => 0;
   sandbox.cancelAnimationFrame = () => {};
   sandbox.devicePixelRatio = 1; sandbox.innerWidth = 375; sandbox.innerHeight = 667;
-  sandbox.AudioContext = function () { return ctx2d(); };
+  const audioNode = () => ({
+    type: '', frequency: { value: 0, setValueAtTime() {} },
+    gain: { value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} },
+    connect() { return this; }, disconnect() {}, start() {}, stop() {},
+  });
+  sandbox.AudioContext = function () {
+    return { currentTime: 0, state: 'running', resume() {}, destination: {}, createOscillator: audioNode, createGain: audioNode };
+  };
   sandbox.webkitAudioContext = sandbox.AudioContext;
   sandbox.matchMedia = () => ({ matches: false, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
   sandbox.alert = () => {}; sandbox.confirm = () => true;
