@@ -31,6 +31,19 @@ for g in "${games[@]}"; do
 done
 
 printf -- "----------------------------------\n"
+# 共有モジュールのテスト（games/_shared/*.test.js）
+for tf in games/_shared/*.test.js; do
+  [ -f "$tf" ] || continue
+  name="_shared/$(basename "$tf" .test.js)"
+  if out=$(node "$tf" 2>&1); then
+    p=$(printf '%s' "$out" | grep -oE 'PASS: [0-9]+' | head -1 | grep -oE '[0-9]+')
+    printf "%-14s %-10s\n" "$name" "ok($p)"
+  else
+    printf "%-14s %-10s\n" "$name" "FAIL"; total_fail=$((total_fail+1)); echo "$out" | tail -3
+  fi
+done
+
+printf -- "----------------------------------\n"
 if [ "$total_fail" -eq 0 ]; then
   echo "ALL GREEN ✅"
   exit 0

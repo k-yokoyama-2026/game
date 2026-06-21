@@ -35,6 +35,7 @@ h1 { text-align: center; font-size: 1.9rem; margin-bottom: 0.3rem; }
 .game-card .icon { font-size: 2.4rem; margin-bottom: 0.4rem; }
 .game-card h2 { font-size: 1.15rem; margin-bottom: 0.25rem; }
 .game-card p { font-size: 0.85rem; color: #888; flex: 1; margin-bottom: 0.9rem; }
+.game-card .best { font-size: 0.8rem; font-weight: 700; color: #d68910; background: #fdf3e3; border-radius: 0.5rem; padding: 0.3rem 0.6rem; margin-bottom: 0.7rem; align-self: flex-start; }
 .btns { display: flex; gap: 0.5rem; }
 .btn {
   flex: 1; text-align: center; text-decoration: none;
@@ -61,28 +62,31 @@ h1 { text-align: center; font-size: 1.9rem; margin-bottom: 0.3rem; }
 <div class="games" id="games"></div>
 <p class="foot">© k-yokoyama-2026 / すべて1ファイルのブラウザゲーム</p>
 
+<script src="games/_shared/scoreboard.js"></script>
 <script>
 const GAMES = [
   { dir: 'pet-care',    icon: '🐾', name: 'ペットそだて',     desc: 'ねこ・いぬ・ハムスターを育てよう！ガチャもあるよ', deluxe: true, fresh: true },
-  { dir: 'block-blast', icon: '🧩', name: 'ブロックブラスト', desc: 'ブロックを置いて列を消そう！連鎖でハイスコア！' },
+  { dir: 'block-blast', icon: '🧩', name: 'ブロックブラスト', desc: 'ブロックを置いて列を消そう！連鎖でハイスコア！', best: { key: 'blockblast_best', kind: 'high', unit: '点' } },
   { dir: 'yagoto-walk', icon: '🚶', name: '八事ウォーク',     desc: '八事日赤エリアを歩いてチェックポイントを集めよう！' },
-  { dir: 'cat-hide',    icon: '🐱', name: 'にゃんこどこ？',   desc: '病院に行きたくないネコを探し出そう！' },
-  { dir: 'maze-number', icon: '🔢', name: '数字迷路',         desc: '迷路で数字を集めろ！おに👹から逃げきろう' },
-  { dir: 'bank-game',   icon: '🏦', name: '銀行ゲーム',       desc: '金利を操って銀行を経営！取り付け騒ぎに注意' },
-  { dir: 'catch-thief', icon: '🦹', name: '泥棒をやっつけろ', desc: '家に近づく泥棒をタップ！5レベルごとにボス' },
-  { dir: 'rhythm-tap',  icon: '❤️', name: 'リズムタップ',     desc: 'ハートと星をタップ！フィーバーで高得点！' },
-  { dir: 'gem-hunt',    icon: '💎', name: 'キラめき探検隊',   desc: '宝石・星のかけらを集めて★3クリアを目指せ！' },
-  { dir: 'town-grow',   icon: '🏡', name: 'まちづくり物語',   desc: '最善の選択で連鎖ボーナス！町を発展させよう' },
+  { dir: 'cat-hide',    icon: '🐱', name: 'にゃんこどこ？',   desc: '病院に行きたくないネコを探し出そう！', best: { key: 'cathide_best', kind: 'high', unit: '点' } },
+  { dir: 'maze-number', icon: '🔢', name: '数字迷路',         desc: '迷路で数字を集めろ！おに👹から逃げきろう', best: { key: 'maze_best', kind: 'high', unit: '' } },
+  { dir: 'bank-game',   icon: '🏦', name: '銀行ゲーム',       desc: '金利を操って銀行を経営！取り付け騒ぎに注意', best: { key: 'bank_best', kind: 'high', unit: '' } },
+  { dir: 'catch-thief', icon: '🦹', name: '泥棒をやっつけろ', desc: '家に近づく泥棒をタップ！5レベルごとにボス', best: { key: 'catchThiefHigh', kind: 'high', unit: '点' } },
+  { dir: 'rhythm-tap',  icon: '❤️', name: 'リズムタップ',     desc: 'ハートと星をタップ！フィーバーで高得点！', best: { key: 'rhythm_best', kind: 'high', unit: '点' } },
+  { dir: 'gem-hunt',    icon: '💎', name: 'キラめき探検隊',   desc: '宝石・星のかけらを集めて★3クリアを目指せ！', best: { key: 'gem_best_time', kind: 'lowTime', unit: '秒' } },
+  { dir: 'town-grow',   icon: '🏡', name: 'まちづくり物語',   desc: '最善の選択で連鎖ボーナス！町を発展させよう', best: { key: 'town_best', kind: 'high', unit: '' } },
 ];
 
 const wrap = document.getElementById('games');
 GAMES.forEach(g => {
   const card = document.createElement('div');
   card.className = 'game-card';
+  const bestText = g.best ? Scoreboard.readBest(window.localStorage, g.best) : null;
   card.innerHTML =
     `<div class="icon">${g.icon}</div>` +
     `<h2>${g.name}${g.fresh ? '<span class="badge">NEW</span>' : ''}</h2>` +
     `<p>${g.desc}</p>` +
+    (bestText ? `<div class="best">${bestText}</div>` : '') +
     `<div class="btns">` +
       `<a class="btn deluxe" href="games/${g.dir}/">デラックス版</a>` +
       `<a class="btn orig" href="games/${g.dir}/v1/">オリジナル版</a>` +
