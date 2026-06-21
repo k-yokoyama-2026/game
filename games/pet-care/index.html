@@ -345,6 +345,7 @@ function startLoop() {
   loopTimer = setInterval(() => {
     const s = game.state;
     if (s.status !== 'playing') return;
+    if (isPaused()) return; // ガチャ／コレクションを開いている間は時間を止める
     const r = game.tick(0.1);
     updatePatience();
     if (r.timeout) {
@@ -359,6 +360,11 @@ function startLoop() {
     $('fClean').style.width = s.stats.clean + '%';
     $('fMood').style.width = s.stats.mood + '%';
   }, 100);
+}
+
+// ガチャ／コレクションを開いている間はゲーム時間を止める（ライフが減らない）
+function isPaused() {
+  return $('gachaModal').classList.contains('show') || $('collModal').classList.contains('show');
 }
 
 function endCleared() {

@@ -71,18 +71,24 @@ try {
 ok(!threw, 'ガチャ回転で例外が出ない');
 ok(/ゲット/.test($('gachaResult').innerHTML), 'ガチャ結果が表示: ' + $('gachaResult').innerHTML.replace(/<[^>]+>/g, ' '));
 
+console.log('# ガチャ中はライフ（時間）が止まる');
+const heartsDuringGacha = $('heartText').textContent;
+H.fireIntervals(200); // ガチャモーダルを開いたまま時間を進めても…
+ok($('heartText').textContent === heartsDuringGacha, 'ガチャ中はハートが減らない: ' + $('heartText').textContent);
+ctx.closeGacha();
+
 console.log('# コレクションと「つかう」');
 ctx.openColl();
 const collItems = $('collGrid').children;
 ok(collItems.length >= 1, 'コレクションにアイテムがある');
 ok(/つかう/.test(collItems[0].innerHTML), 'アイテムに「つかう」ボタンがある');
 
-console.log('# ゲームループ（タイムアウト→ハート減少）');
+console.log('# モーダルを閉じると時間が再開（タイムアウト→ハート減少）');
+doc.getElementById('collModal').classList.remove('show'); // 閉じる
 threw = false;
-const heartsBefore = $('heartText').textContent;
-try { H.fireIntervals(160); } catch (e) { threw = true; console.error(e); }
+try { H.fireIntervals(200); } catch (e) { threw = true; console.error(e); }
 ok(!threw, 'ループ実行で例外が出ない');
-ok(typeof $('heartText').textContent === 'string', 'ハート表示が更新される');
+ok(/🤍/.test($('heartText').textContent), 'モーダルを閉じた後は時間が進みハートが減る: ' + $('heartText').textContent);
 
 console.log('# クリア画面');
 threw = false;
