@@ -262,7 +262,7 @@ function choose(evIdx, choiceIdx, btn){
   const c = ev.choices[choiceIdx];
   const btns = document.querySelectorAll('.choice-btn');
   btns.forEach(b => {b.disabled = true;});
-  const res = TownCore.resolveChoice(ev.choices, choiceIdx, game.streak || 0);
+  const res = TownCore.resolveChoice(ev.choices, choiceIdx, game.streak || 0, Math.random);
   if (res.disaster){
     btn.classList.add('wrong');
     game.streak = 0;
@@ -278,6 +278,8 @@ function choose(evIdx, choiceIdx, btn){
     game.streak = res.newStreak;
     let txt = c.msg + ` (住民+${res.popDelta})`;
     if (res.isBest && res.bonus > 0) txt += ` 🔥さいぜん連鎖×${res.newStreak}! +${res.bonus}`;
+    if (res.twist === 'down') txt += ' （思ったより伸びず…）';
+    else if (res.twist === 'up') txt += ' （うれしい誤算！）';
     document.getElementById('result').textContent = txt;
     playSound('good');
     refreshUI();
