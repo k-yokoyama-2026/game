@@ -158,6 +158,7 @@ canvas { display: block; }
   <button class="btn" id="next-level-btn">次のレベルへ</button>
 </div>
 
+<script src="core.js"></script>
 <script>
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -199,19 +200,13 @@ function houseY() { return canvas.height / 2; }
 const HOUSE_RADIUS = 50;
 
 // --- Level Config ---
-function getLevelConfig(lv) {
-  const base = 5 + lv * 2;
-  const speed = 0.6 + lv * 0.12;
-  const sneakyChance = lv >= 4 ? Math.min(0.1 + (lv - 4) * 0.04, 0.35) : 0;
-  const fastChance = lv >= 2 ? Math.min(0.1 + (lv - 2) * 0.04, 0.4) : 0;
-  const spawnInterval = Math.max(1800 - lv * 80, 500);
-  return { total: base, speed, sneakyChance, fastChance, spawnInterval };
-}
+function getLevelConfig(lv) { return ThiefCore.getLevelConfig(lv); }
 
 // --- Thief Types ---
 const THIEF_EMOJIS = ['🥷', '🦹', '👤', '🕵️'];
 const FAST_EMOJIS = ['🏃', '💨'];
 const SNEAKY_EMOJIS = ['👻', '🫥'];
+const BOSS_EMOJIS = ['👹', '👺'];
 
 function spawnThief() {
   const cfg = getLevelConfig(level);
@@ -220,28 +215,28 @@ function spawnThief() {
   const x = houseX() + Math.cos(angle) * dist;
   const y = houseY() + Math.sin(angle) * dist;
 
-  let type = 'normal';
-  const r = Math.random();
-  if (r < cfg.sneakyChance) type = 'sneaky';
-  else if (r < cfg.sneakyChance + cfg.fastChance) type = 'fast';
+  let type = ThiefCore.pickType(Math.random, cfg);
+  // ボス回は最後の1体をボスにする
+  if (cfg.boss && spawnedCount === cfg.total - 1) type = 'boss';
 
-  let speed = cfg.speed * (0.8 + Math.random() * 0.4);
-  let emoji, hp = 1, size = 36;
+  const stats = ThiefCore.thiefStats(type);
+  let speed = cfg.speed * (0.8 + Math.random() * 0.4) * stats.speedMult;
+  let size = stats.size;
+  let hp = 1, emoji;
   if (type === 'fast') {
-    speed *= 1.6;
     emoji = FAST_EMOJIS[Math.floor(Math.random() * FAST_EMOJIS.length)];
-    size = 32;
   } else if (type === 'sneaky') {
-    speed *= 0.8;
     emoji = SNEAKY_EMOJIS[Math.floor(Math.random() * SNEAKY_EMOJIS.length)];
-    size = 34;
+  } else if (type === 'boss') {
+    emoji = BOSS_EMOJIS[Math.floor(Math.random() * BOSS_EMOJIS.length)];
+    hp = ThiefCore.bossHp(level);
   } else {
     emoji = THIEF_EMOJIS[Math.floor(Math.random() * THIEF_EMOJIS.length)];
     if (level >= 10) hp = Math.random() < 0.3 ? 2 : 1;
   }
 
   thieves.push({
-    x, y, speed, type, emoji, hp, size,
+    x, y, speed, type, emoji, hp, maxHp: hp, size,
     targetX: houseX(), targetY: houseY(),
     alpha: type === 'sneaky' ? 0.25 : 1,
     stunTimer: 0,
@@ -313,7 +308,7 @@ function addCombo() {
 }
 
 function getComboMultiplier() {
-  return Math.min(combo, 10);
+  return ThiefCore.comboMultiplier(combo);
 }
 
 // --- Scoring ---
@@ -357,10 +352,10 @@ function handleTap(px, py) {
       t.hp--;
       t.hitFlash = 8;
       if (t.hp <= 0) {
-        const pts = addScore(t.type === 'fast' ? 150 : t.type === 'sneaky' ? 200 : 100);
+        const pts = addScore(ThiefCore.thiefBaseScore(t.type));
         addCombo();
-        addParticles(t.x, t.y, '💥', 4);
-        addParticles(t.x, t.y, '⭐', 2);
+        addParticles(t.x, t.y, '💥', t.type === 'boss' ? 10 : 4);
+        addParticles(t.x, t.y, t.type === 'boss' ? '🎉' : '⭐', t.type === 'boss' ? 6 : 2);
         thieves.splice(i, 1);
         caughtCount++;
       } else {
@@ -530,11 +525,12 @@ function drawGame() {
     }
 
     // HP bar for hp > 1
-    if (t.hp > 1) {
+    if (t.hp > 1 || (t.maxHp && t.maxHp > 1 && t.hp < t.maxHp)) {
+      const w = Math.max(30, t.size * 0.9);
       ctx.fillStyle = '#ff4444';
-      ctx.fillRect(t.x - 15, t.y - t.size * 0.7, 30, 4);
+      ctx.fillRect(t.x - w / 2, t.y - t.size * 0.7, w, 4);
       ctx.fillStyle = '#44ff44';
-      ctx.fillRect(t.x - 15, t.y - t.size * 0.7, 15 * t.hp, 4);
+      ctx.fillRect(t.x - w / 2, t.y - t.size * 0.7, w * (t.hp / (t.maxHp || t.hp)), 4);
     }
 
     ctx.globalAlpha = 1;

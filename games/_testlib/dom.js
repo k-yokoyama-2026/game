@@ -12,8 +12,15 @@ function makeStyle() {
 }
 
 function ctx2d() {
+  const gradient = { addColorStop() {} };
   return new Proxy({}, {
-    get(t, p) { if (p in t) return t[p]; return () => {}; },
+    get(t, p) {
+      if (p in t) return t[p];
+      if (p === 'createLinearGradient' || p === 'createRadialGradient' || p === 'createConicGradient' || p === 'createPattern') return () => gradient;
+      if (p === 'measureText') return () => ({ width: 0 });
+      if (p === 'getImageData') return () => ({ data: [] });
+      return () => {};
+    },
     set(t, p, v) { t[p] = v; return true; },
   });
 }
