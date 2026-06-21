@@ -1,0 +1,18 @@
+/* 共通アクセシビリティ（全ゲーム共有） */
+
+/* 動きに敏感なユーザー向け：派手なアニメ/トランジションを抑制 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* キーボード操作時のフォーカスを必ず見えるように */
+:focus-visible {
+  outline: 3px solid #ffcc00 !important;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
