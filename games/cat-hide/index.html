@@ -248,6 +248,7 @@ body {
   <div class="cat-icon">🐱</div>
   <h1>にゃんこどこ？</h1>
   <p class="subtitle">病院に行きたくないネコを探し出そう！</p>
+  <p class="subtitle" id="title-best" style="font-size:1rem;min-height:1.2em"></p>
   <button onclick="startGame()">さがす！</button>
 </div>
 
@@ -449,6 +450,16 @@ let currentLevel = 0;
 let wrongTaps = 0;
 let totalScore = 0;
 
+const BEST_KEY = 'cathide_best';
+function loadBest() {
+  try { return parseInt(localStorage.getItem(BEST_KEY), 10) || 0; } catch (e) { return 0; }
+}
+function showBestOnTitle() {
+  const b = loadBest();
+  const el = document.getElementById('title-best');
+  if (el) el.textContent = b > 0 ? `🏆 ベスト ${b}点` : '';
+}
+
 function startGame() {
   document.getElementById('title-screen').style.display = 'none';
   document.getElementById('game-screen').style.display = 'flex';
@@ -460,7 +471,10 @@ function resetGame() {
   currentLevel = 0;
   document.getElementById('clear-screen').style.display = 'none';
   document.getElementById('title-screen').style.display = 'flex';
+  showBestOnTitle();
 }
+
+showBestOnTitle();
 
 function makeHint(label) { return CatCore.makeHint(label); }
 
@@ -586,8 +600,14 @@ function nextLevel() {
 
   if (currentLevel >= levels.length - 1) {
     document.getElementById('game-screen').style.display = 'none';
+    const prevBest = loadBest();
+    const res = CatCore.bestScore(prevBest, totalScore);
+    try { localStorage.setItem(BEST_KEY, String(res.best)); } catch (e) {}
     const cp = document.querySelector('#clear-screen p');
-    if (cp) cp.innerHTML = `ぜんぶ見つけた！<br>ネコちゃんは無事に病院へ…<br><b>合計 ${totalScore}点</b></p>`;
+    if (cp) {
+      const record = res.beat ? '<br>🎉 新記録！' : `<br>ベスト ${res.best}点`;
+      cp.innerHTML = `ぜんぶ見つけた！<br>ネコちゃんは無事に病院へ…<br><b>合計 ${totalScore}点</b>${record}`;
+    }
     document.getElementById('clear-screen').style.display = 'flex';
     SFX.allclear();
     return;

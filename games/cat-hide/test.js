@@ -39,6 +39,15 @@ ok(C.levelPoints(3) === 300, '★3は300点');
 ok(C.levelPoints(1) === 100, '★1は100点');
 ok(C.levelPoints(3) > C.levelPoints(2), '★が多いほど高得点');
 
+section('ベストスコア');
+ok(C.bestScore(0, 300).best === 300, '初プレイは現スコアがベスト');
+ok(C.bestScore(0, 300).beat === true, '初プレイは新記録');
+ok(C.bestScore(500, 300).best === 500, '下回ったら旧記録を維持');
+ok(C.bestScore(500, 300).beat === false, '下回ったら新記録ではない');
+ok(C.bestScore(300, 800).best === 800 && C.bestScore(300, 800).beat === true, '上回ったら更新+新記録');
+ok(C.bestScore(NaN, 200).best === 200, '不正な旧値は0扱い');
+ok(C.bestScore(undefined, -5).best === 0, '不正値同士は0');
+
 console.log('\n=====================================');
 console.log(`  PASS: ${pass}  FAIL: ${fail}`);
 console.log('=====================================');

@@ -24,7 +24,14 @@
   function starsForWrongTaps(wrong) { return wrong === 0 ? 3 : wrong <= 2 ? 2 : 1; }
   function levelPoints(stars) { return stars * 100; }
 
-  const api = { pickHider, makeHint, starsForWrongTaps, levelPoints };
+  // ベストスコア更新（非数値や負値は0扱い）。新記録なら beat=true。
+  function bestScore(prev, current) {
+    const p = Number.isFinite(prev) && prev > 0 ? prev : 0;
+    const c = Number.isFinite(current) && current > 0 ? current : 0;
+    return { best: Math.max(p, c), beat: c > p };
+  }
+
+  const api = { pickHider, makeHint, starsForWrongTaps, levelPoints, bestScore };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (global) global.CatCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
