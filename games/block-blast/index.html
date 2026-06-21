@@ -313,7 +313,7 @@ function newGame(){
   readout.textContent = 'ブロックを動かすと評価が出ます';
   document.getElementById('over').classList.remove('show');
   buildBoard();
-  refillPieces();
+  refillPieces(true);
   render();
 }
 
@@ -326,10 +326,12 @@ function render(){
   }
 }
 
-function refillPieces(){
+function refillPieces(allowSingle){
+  // 1x1 ブロックは最初の配布のみ。以降は2マス以上の駒だけ出す
+  const pool = allowSingle ? SHAPES : SHAPES.filter(s=>s.length>1);
   pieces = [];
   for(let i=0;i<3;i++){
-    const shape = normalize(SHAPES[Math.floor(Math.random()*SHAPES.length)]);
+    const shape = normalize(pool[Math.floor(Math.random()*pool.length)]);
     pieces.push({ shape, color: COLORS[Math.floor(Math.random()*COLORS.length)], used:false });
   }
   renderTray();
