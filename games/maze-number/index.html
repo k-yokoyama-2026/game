@@ -108,11 +108,13 @@ canvas { display: block; }
   <p class="subtitle">迷路を進んで数字を集めよう!</p>
   <p>自分の数字は <b style="color:#40f080">2</b> からスタート<br>
   自分より<b style="color:#40f080">小さい数字</b>を取ると、その分パワーアップ!<br>
-  自分より<b style="color:#e04060">大きい数字</b>に当たるとゲームオーバー<br><br>
+  自分より<b style="color:#e04060">大きい数字</b>に当たるとゲームオーバー<br>
+  レベル3から <b style="color:#e04060">おに👹</b> が追いかけてくる！にげきろう<br><br>
   全25レベルをクリアしよう!</p>
   <button class="btn-start" onclick="startGame()">スタート</button>
 </div>
 
+<script src="core.js"></script>
 <script>
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -122,6 +124,7 @@ const numberDisp = document.getElementById('numberDisp');
 const dpad = document.getElementById('dpad');
 
 let maze, player, numbers, level, playerNum, goalPos;
+let enemies = [], enemyEvery = 2, moveCount = 0;
 let cols, rows, cellSize;
 let gameState = 'title'; // title, playing, gameover, clear, allclear
 let animFrame;
@@ -139,73 +142,8 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-function getLevelConfig(lv) {
-  const baseCols = 7 + Math.floor(lv * 1.4);
-  const baseRows = 7 + Math.floor(lv * 1.2);
-  const c = Math.min(baseCols, 45);
-  const r = Math.min(baseRows, 37);
-  // ensure odd dimensions for maze gen
-  const mc = c % 2 === 0 ? c + 1 : c;
-  const mr = r % 2 === 0 ? r + 1 : r;
-  const numCount = 3 + Math.floor(lv * 1.5);
-  const maxNum = Math.min(2 + lv * 3, 80);
-  return { cols: mc, rows: mr, numCount, maxNum };
-}
-
-function generateMaze(c, r) {
-  const grid = [];
-  for (let y = 0; y < r; y++) {
-    grid[y] = [];
-    for (let x = 0; x < c; x++) {
-      grid[y][x] = WALL;
-    }
-  }
-
-  // Recursive backtracker
-  const stack = [];
-  const sx = 1, sy = 1;
-  grid[sy][sx] = PATH;
-  stack.push([sx, sy]);
-
-  const dirs = [[0,-2],[0,2],[-2,0],[2,0]];
-
-  while (stack.length > 0) {
-    const [cx, cy] = stack[stack.length - 1];
-    const shuffled = dirs.slice().sort(() => Math.random() - 0.5);
-    let found = false;
-    for (const [dx, dy] of shuffled) {
-      const nx = cx + dx, ny = cy + dy;
-      if (nx > 0 && nx < c - 1 && ny > 0 && ny < r - 1 && grid[ny][nx] === WALL) {
-        grid[cy + dy / 2][cx + dx / 2] = PATH;
-        grid[ny][nx] = PATH;
-        stack.push([nx, ny]);
-        found = true;
-        break;
-      }
-    }
-    if (!found) stack.pop();
-  }
-
-  // Open a few extra passages for larger mazes to make them less tedious
-  if (c > 15 || r > 15) {
-    const extra = Math.floor((c * r) / 40);
-    for (let i = 0; i < extra; i++) {
-      const wx = 1 + Math.floor(Math.random() * (c - 2));
-      const wy = 1 + Math.floor(Math.random() * (r - 2));
-      if (grid[wy][wx] === WALL) {
-        // check neighbors: open only if it connects two paths
-        let pathNeighbors = 0;
-        if (wy > 0 && grid[wy-1][wx] === PATH) pathNeighbors++;
-        if (wy < r-1 && grid[wy+1][wx] === PATH) pathNeighbors++;
-        if (wx > 0 && grid[wy][wx-1] === PATH) pathNeighbors++;
-        if (wx < c-1 && grid[wy][wx+1] === PATH) pathNeighbors++;
-        if (pathNeighbors >= 2) grid[wy][wx] = PATH;
-      }
-    }
-  }
-
-  return grid;
-}
+function getLevelConfig(lv) { return MazeCore.getLevelConfig(lv); }
+function generateMaze(c, r) { return MazeCore.generateMaze(c, r); }
 
 function getPathCells() {
   const cells = [];
@@ -280,6 +218,20 @@ function initLevel(lv) {
     }
     numbers.push({ x: pos[0], y: pos[1], val, alive: true });
   }
+
+  // 追いかけてくる敵（おに）を一番遠い通路に配置
+  enemies = [];
+  enemyEvery = cfg.enemyEvery;
+  moveCount = 0;
+  if (cfg.enemyCount > 0) {
+    let far = player, farD = 0;
+    for (const c of pathCells) {
+      if (c[0] === goalPos[0] && c[1] === goalPos[1]) continue;
+      const d = dist(c, player);
+      if (d > farD) { farD = d; far = c; }
+    }
+    for (let i = 0; i < cfg.enemyCount; i++) enemies.push({ x: far[0], y: far[1] });
+  }
 }
 
 function startGame() {
@@ -320,6 +272,11 @@ function movePlayer(dx, dy) {
 
   player = [nx, ny];
 
+  // プレイヤーが敵マスに入った＝捕まる
+  for (const en of enemies) {
+    if (en.x === nx && en.y === ny) { gameState = 'gameover'; showEnemyGameOver(); return; }
+  }
+
   // Check number collision
   for (const n of numbers) {
     if (!n.alive) continue;
@@ -345,7 +302,34 @@ function movePlayer(dx, dy) {
     return;
   }
 
+  // 敵が追いかけてくる（enemyEvery 手ごとに1歩）
+  moveCount++;
+  if (enemies.length && moveCount % enemyEvery === 0) {
+    for (const en of enemies) {
+      const step = MazeCore.bfsNextStep(maze, [en.x, en.y], player);
+      en.x = step[0]; en.y = step[1];
+      if (en.x === player[0] && en.y === player[1]) {
+        gameState = 'gameover';
+        showEnemyGameOver();
+        return;
+      }
+    }
+  }
+
   draw();
+}
+
+function showEnemyGameOver() {
+  dpad.classList.add('hidden');
+  overlay.classList.remove('hidden');
+  overlay.innerHTML = `
+    <h1 style="color:#e04060">つかまった！</h1>
+    <p>おに <b style="font-size:28px">👹</b> につかまった！</p>
+    <p class="score-display">自分の数字: ${playerNum}<br>到達レベル: ${level}</p>
+    <button class="btn-retry" onclick="startGame()">リトライ</button>
+    <br>
+    <button class="btn-title" onclick="showTitle()">タイトルへ</button>
+  `;
 }
 
 function showGameOver(hitNum) {
@@ -489,6 +473,19 @@ function draw() {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(n.val, nx + cellSize / 2, ny + cellSize / 2);
+  }
+
+  // Draw enemies (おに)
+  for (const en of enemies) {
+    const ex = en.x * cellSize, ey = en.y * cellSize;
+    ctx.fillStyle = 'rgba(224,64,96,0.85)';
+    ctx.beginPath();
+    ctx.arc(ex + cellSize / 2, ey + cellSize / 2, cellSize * 0.44, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = `${Math.floor(cellSize * 0.6)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('👹', ex + cellSize / 2, ey + cellSize / 2);
   }
 
   // Draw player
