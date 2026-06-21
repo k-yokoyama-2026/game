@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>八事ウォーク</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body {
+  font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+  background: #eaf3ea; color: #234; min-height: 100dvh;
+  display: flex; flex-direction: column; user-select: none;
+}
+#hud {
+  display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.9rem;
+  background: #2e7d52; color: #fff; font-weight: 700;
+}
+#hud .title { font-size: 1rem; }
+#hud .spacer { flex: 1; }
+#hud .score { background: #fff; color: #2e7d52; padding: 0.2rem 0.7rem; border-radius: 999px; }
+#sub { display: flex; gap: 0.6rem; padding: 0.4rem 0.9rem; font-size: 0.85rem; background: #d7ead7; color: #2e5; }
+#sub span { color: #2e7d52; font-weight: 700; }
+#map { flex: 1; min-height: 200px; background: #cfe; }
+#map.nomap { display: flex; align-items: center; justify-content: center; color: #789; font-size: 0.9rem; text-align: center; padding: 1rem; }
+#panel { background: #fff; max-height: 42dvh; overflow-y: auto; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); }
+.cp { display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.9rem; border-bottom: 1px solid #eef; }
+.cp .ic { font-size: 1.5rem; }
+.cp .info { flex: 1; }
+.cp .info .n { font-weight: 700; }
+.cp .info .d { font-size: 0.78rem; color: #789; }
+.cp.visited { background: #f3fbf3; }
+.cp.visited .info .n { color: #2e7d52; }
+.cp .go { border: none; background: #2e7d52; color: #fff; font-family: inherit; font-weight: 700; border-radius: 999px; padding: 0.4rem 0.8rem; font-size: 0.8rem; cursor: pointer; }
+.cp.visited .go { background: #9bbf9b; }
+#controls { display: flex; gap: 0.5rem; padding: 0.6rem 0.9rem; background: #fff; border-top: 1px solid #eef; }
+#controls button { flex: 1; border: none; border-radius: 0.7rem; padding: 0.7rem; font-family: inherit; font-weight: 700; cursor: pointer; }
+#startBtn { background: #2e7d52; color: #fff; }
+#testBtn { background: #ffd54f; color: #5a4500; }
+#testBtn.on { background: #ff9800; color: #fff; }
+#toast { position: fixed; top: 16%; left: 50%; transform: translateX(-50%) translateY(-10px); background: #234; color: #fff; padding: 0.55rem 1.2rem; border-radius: 999px; font-weight: 700; opacity: 0; pointer-events: none; z-index: 1000; transition: opacity 0.3s, transform 0.3s; }
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#clear { position: fixed; inset: 0; background: rgba(20,40,30,0.92); color: #fff; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; z-index: 1100; text-align: center; padding: 2rem; }
+#clear.show { display: flex; }
+#clear .big { font-size: 4.5rem; }
+#clear button { padding: 0.7rem 2rem; border: none; border-radius: 999px; background: #ffd54f; color: #5a4500; font-family: inherit; font-weight: 700; font-size: 1rem; cursor: pointer; }
+.note { font-size: 0.7rem; color: #789; padding: 0.3rem 0.9rem; background: #fff; }
+.home { font-size: 0.8rem; color: #2e7d52; text-decoration: none; padding: 0.3rem 0.9rem; background: #fff; }
+.leaflet-container { font: inherit; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <span class="title">🚶 八事ウォーク</span>
+  <span class="spacer"></span>
+  <span class="score">⭐ <span id="scoreVal">0</span></span>
+</div>
+<div id="sub">
+  <div>めぐった: <span id="progVal">0/0</span></div>
+  <div>最寄り: <span id="nearVal">—</span></div>
+  <div id="comboBox" style="display:none">🔥<span id="comboVal">2</span>れんさ</div>
+</div>
+
+<div id="map"></div>
+
+<div id="panel"></div>
+
+<div id="controls">
+  <button id="startBtn">📍 位置情報で開始</button>
+  <button id="testBtn">🧪 テストモード</button>
+</div>
+<div class="note" id="note">※ チェックポイント座標は暫定です。現地のGPSは数十mずれることがあります（到達半径45m）。</div>
+<a class="home" href="../../">← ゲーム一覧へ</a>
+
+<div id="toast"></div>
+<div id="clear">
+  <div class="big">🏆</div>
+  <h1>全チェックポイント制覇！</h1>
+  <p id="clearText"></p>
+  <button onclick="location.reload()">もう一度</button>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="core.js"></script>
+<script>
+// 八事日赤駅 周辺のチェックポイント（暫定座標・編集可）
+const CHECKPOINTS = [
+  { name: '八事日赤駅',       ic: '🚉', lat: 35.1356, lng: 136.9588, points: 100 },
+  { name: '名古屋第二赤十字病院（八事日赤）', ic: '🏥', lat: 35.1372, lng: 136.9598, points: 120 },
+  { name: '八事山 興正寺',     ic: '⛩️', lat: 35.1388, lng: 136.9618, points: 200 },
+  { name: '中京大学 名古屋C',  ic: '🎓', lat: 35.1330, lng: 136.9636, points: 150 },
+  { name: '隼人池',           ic: '🦆', lat: 35.1408, lng: 136.9566, points: 150 },
+  { name: '八事駅',           ic: '🚇', lat: 35.1329, lng: 136.9606, points: 100 },
+  { name: '平和公園',         ic: '🌳', lat: 35.1518, lng: 136.9686, points: 180 },
+];
+const RADIUS = 45;
+
+const state = { visited: new Set(), score: 0, combo: 0, lastTime: 0 };
+let testMode = false;
+let map = null, playerMarker = null, cpMarkers = [];
+
+const $ = id => document.getElementById(id);
+
+function hasMap() { return typeof L !== 'undefined' && !!map; }
+
+function initMap() {
+  if (typeof L === 'undefined') {
+    $('map').classList.add('nomap');
+    $('map').textContent = '地図を読み込めませんでした（オフライン？）。テストモードで遊べます。';
+    return;
+  }
+  const c = CHECKPOINTS[0];
+  map = L.map('map').setView([c.lat, c.lng], 15);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap', maxZoom: 19,
+  }).addTo(map);
+  cpMarkers = CHECKPOINTS.map((cp, i) => {
+    const m = L.marker([cp.lat, cp.lng]).addTo(map).bindPopup(`${cp.ic} ${cp.name}（${cp.points}点）`);
+    L.circle([cp.lat, cp.lng], { radius: RADIUS, color: '#2e7d52', weight: 1, fillOpacity: 0.08 }).addTo(map);
+    return m;
+  });
+  // テストモード時は地図クリックで「そこへ移動」
+  map.on('click', e => { if (testMode) handlePosition(e.latlng.lat, e.latlng.lng); });
+}
+
+function handlePosition(lat, lng) {
+  if (hasMap()) {
+    if (!playerMarker) {
+      playerMarker = L.circleMarker([lat, lng], { radius: 8, color: '#1976d2', fillColor: '#42a5f5', fillOpacity: 1 }).addTo(map);
+    } else {
+      playerMarker.setLatLng([lat, lng]);
+    }
+  }
+  const res = YagotoCore.evaluateVisit(state, { lat, lng }, CHECKPOINTS, { radius: RADIUS, now: Date.now() });
+  // 最寄り未訪問までの距離を表示
+  updateNearest(lat, lng);
+  if (res.collected) {
+    state.visited.add(res.index);
+    state.score = res.score;
+    state.combo = res.combo;
+    state.lastTime = res.now;
+    const cp = CHECKPOINTS[res.index];
+    showToast(`${cp.ic} ${cp.name} 到達！ +${res.points}点`);
+    if (hasMap() && cpMarkers[res.index]) cpMarkers[res.index].setOpacity(0.5);
+    updateHUD();
+    renderList(lat, lng);
+    if (res.allDone) showClear();
+  }
+}
+
+function updateNearest(lat, lng) {
+  let best = null, bestD = Infinity;
+  CHECKPOINTS.forEach((c, i) => {
+    if (state.visited.has(i)) return;
+    const d = YagotoCore.haversine(lat, lng, c.lat, c.lng);
+    if (d < bestD) { bestD = d; best = c; }
+  });
+  $('nearVal').textContent = best ? `${best.name} ${Math.round(bestD)}m` : '全制覇！';
+}
+
+function updateHUD() {
+  $('scoreVal').textContent = state.score;
+  $('progVal').textContent = `${state.visited.size}/${CHECKPOINTS.length}`;
+  if (state.combo >= 2) { $('comboBox').style.display = ''; $('comboVal').textContent = state.combo; }
+  else $('comboBox').style.display = 'none';
+}
+
+function renderList(lat, lng) {
+  const panel = $('panel');
+  panel.innerHTML = '';
+  CHECKPOINTS.forEach((cp, i) => {
+    const visited = state.visited.has(i);
+    const d = (lat != null) ? Math.round(YagotoCore.haversine(lat, lng, cp.lat, cp.lng)) : null;
+    const el = document.createElement('div');
+    el.className = 'cp' + (visited ? ' visited' : '');
+    el.innerHTML =
+      `<span class="ic">${visited ? '✅' : cp.ic}</span>` +
+      `<div class="info"><div class="n">${cp.name}</div><div class="d">${cp.points}点${d != null ? ' ・ ' + d + 'm' : ''}</div></div>` +
+      (testMode ? `<button class="go">▶ 行く</button>` : '');
+    if (testMode) {
+      const btn = el.querySelector('.go');
+      if (btn) btn.onclick = () => handlePosition(cp.lat, cp.lng);
+    }
+    panel.appendChild(el);
+  });
+}
+
+function startGPS() {
+  if (!navigator.geolocation) { showToast('この端末は位置情報に対応していません'); return; }
+  navigator.geolocation.watchPosition(
+    p => handlePosition(p.coords.latitude, p.coords.longitude),
+    () => showToast('位置情報を取得できませんでした（許可が必要です）'),
+    { enableHighAccuracy: true, maximumAge: 2000 }
+  );
+  showToast('位置情報を取得中…歩いてみよう！');
+}
+
+function toggleTestMode() {
+  testMode = !testMode;
+  $('testBtn').classList.toggle('on', testMode);
+  $('testBtn').textContent = testMode ? '🧪 テスト中' : '🧪 テストモード';
+  renderList();
+  showToast(testMode ? 'テストモード：リストの「行く」やマップタップで移動' : 'テストモード解除');
+}
+
+function showToast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function showClear() {
+  $('clearText').textContent = `合計 ${state.score}点！ 全${CHECKPOINTS.length}か所をめぐりました🎉`;
+  $('clear').classList.add('show');
+}
+
+$('startBtn').addEventListener('click', startGPS);
+$('testBtn').addEventListener('click', toggleTestMode);
+
+initMap();
+updateHUD();
+renderList();
+</script>
+</body>
+</html>
