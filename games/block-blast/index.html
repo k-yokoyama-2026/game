@@ -99,6 +99,59 @@ body {
   box-shadow: inset 0 -3px 0 rgba(0,0,0,0.25), inset 0 2px 2px rgba(255,255,255,0.25); }
 #drag .empty { width: var(--dc, 40px); height: var(--dc, 40px); }
 
+.cell.sugg { animation: sugg 0.85s ease-in-out infinite; }
+@keyframes sugg {
+  0%,100% { background: rgba(105,219,124,0.28); box-shadow: inset 0 0 0 2px rgba(105,219,124,0.5); }
+  50% { background: rgba(105,219,124,0.65); box-shadow: inset 0 0 0 2px rgba(105,219,124,0.9); }
+}
+
+#bar {
+  width: min(92vw, 460px);
+  margin-top: 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+#hintBtn {
+  flex: none;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(180deg,#ffd45e,#f0a93b);
+  color: #3a2a00;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(240,169,59,0.4);
+}
+#hintBtn:active { transform: translateY(2px); }
+#readout {
+  flex: 1;
+  text-align: right;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #b3b0d8;
+  min-height: 1.2em;
+}
+
+#evalTag {
+  position: fixed;
+  left: 0; top: 0;
+  transform: translate(-50%,-100%);
+  padding: 3px 9px;
+  border-radius: 9px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  background: #444;
+  color: #fff;
+  pointer-events: none;
+  z-index: 55;
+  display: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+}
+
 #combo {
   position: fixed;
   top: 38%;
@@ -160,8 +213,13 @@ button.btn:active { transform: translateY(2px); }
 </div>
 
 <div id="board"></div>
+<div id="bar">
+  <button id="hintBtn">💡 ヒント</button>
+  <div id="readout">ブロックを動かすと評価が出ます</div>
+</div>
 <div id="tray"></div>
 <div id="drag"></div>
+<div id="evalTag"></div>
 <div id="combo"></div>
 
 <div id="over">
@@ -180,6 +238,10 @@ const dragEl = document.getElementById('drag');
 const scoreEl = document.getElementById('score');
 const bestEl = document.getElementById('best');
 const comboEl = document.getElementById('combo');
+const readout = document.getElementById('readout');
+const evalTag = document.getElementById('evalTag');
+const hintBtn = document.getElementById('hintBtn');
+const NB = [[1,0],[-1,0],[0,1],[0,-1]];
 
 const COLORS = ['#ff6b6b','#ffa94d','#ffd43b','#69db7c','#4dabf7','#9775fa','#f783ac','#3bc9db'];
 
@@ -248,6 +310,7 @@ function newGame(){
   grid = Array.from({length:N},()=>Array(N).fill(null));
   score = 0;
   scoreEl.textContent = 0;
+  readout.textContent = 'ブロックを動かすと評価が出ます';
   document.getElementById('over').classList.remove('show');
   buildBoard();
   refillPieces();
@@ -308,6 +371,7 @@ function startDrag(idx, el, e){
   const [rows,colsN]=dims(p.shape);
   const cellSize = cells[0][0].getBoundingClientRect().width;
   const gap = 4;
+  clearSugg();
   drag = { idx, shape:p.shape, color:p.color, el, cellSize, rows, colsN };
 
   dragEl.style.setProperty('--dc', cellSize+'px');
@@ -354,12 +418,36 @@ function moveDrag(e){
   dragEl.style.transform = `translate(${o.x}px,${o.y}px)`;
   clearHints();
   const {r,c} = cellAt(e);
+  const onBoard = drag.shape.some(([dr,dc])=>{
+    const rr=r+dr, cc=c+dc; return rr>=0&&rr<N&&cc>=0&&cc<N;
+  });
   const ok = canPlace(drag.shape, r, c);
   drag.target = ok ? {r,c} : null;
   for(const [dr,dc] of drag.shape){
     const rr=r+dr, cc=c+dc;
     if(rr>=0&&rr<N&&cc>=0&&cc<N){
       cells[rr][cc].classList.add(ok?'hint':'bad');
+    }
+  }
+
+  // 置こうとしている場所の評価値を表示
+  if(!onBoard){
+    evalTag.style.display='none';
+    readout.textContent='盤の上に重ねてね';
+  } else {
+    const w = drag.colsN*drag.cellSize + (drag.colsN-1)*4;
+    evalTag.style.left = (o.x + w/2)+'px';
+    evalTag.style.top  = (o.y - 6)+'px';
+    evalTag.style.display='block';
+    if(ok){
+      const ev = evaluateAt(drag.shape, r, c);
+      evalTag.style.background = ev.lines>0 ? '#2f9e44' : (ev.score>=0 ? '#444' : '#a13b3b');
+      evalTag.textContent = evalText(ev);
+      readout.textContent = evalText(ev);
+    } else {
+      evalTag.style.background = '#a13b3b';
+      evalTag.textContent = 'ここには置けない';
+      readout.textContent = 'ここには置けない';
     }
   }
 }
@@ -373,6 +461,7 @@ function endDrag(e){
   window.removeEventListener('pointermove', moveDrag);
   window.removeEventListener('pointerup', endDrag);
   dragEl.style.display='none';
+  evalTag.style.display='none';
   clearHints();
   if(drag){
     drag.el.classList.remove('dragging');
@@ -381,6 +470,7 @@ function endDrag(e){
     }
   }
   drag = null;
+  readout.textContent='ブロックを動かすと評価が出ます';
 }
 
 function canPlace(shape, r, c){
@@ -391,6 +481,88 @@ function canPlace(shape, r, c){
   }
   return true;
 }
+
+// ---- 評価関数：この場所に置いたときの良さを数値化 ----
+// 消える列数（＋コンボ）・周囲との密着・できる穴・残り埋まり具合 で算出
+function evaluateAt(shape, r, c){
+  const g = grid.map(row=>row.map(v=>!!v));
+  for(const [dr,dc] of shape) g[r+dr][c+dc]=true;
+
+  // 完成した行・列
+  const cRows=[], cCols=[];
+  for(let i=0;i<N;i++) if(g[i].every(v=>v)) cRows.push(i);
+  for(let j=0;j<N;j++){ let f=true; for(let i=0;i<N;i++) if(!g[i][j]){f=false;break;} if(f) cCols.push(j); }
+  const lines = cRows.length + cCols.length;
+
+  let score = 0;
+  score += lines*30;                 // 列を消すのは大きく加点
+  if(lines>=2) score += (lines-1)*20; // コンボボーナス
+
+  // 周囲との密着（既存ブロック・盤の端に接していると安定）
+  let adj=0;
+  for(const [dr,dc] of shape){
+    const rr=r+dr, cc=c+dc;
+    for(const [a,b] of NB){
+      const nr=rr+a, nc=cc+b;
+      if(nr<0||nr>=N||nc<0||nc>=N) adj++;        // 端
+      else if(grid[nr][nc]) adj++;               // 既存ブロック（今置く駒は除く）
+    }
+  }
+  score += adj*2;
+
+  // 消去後の盤面で評価
+  const g2 = g.map(row=>row.slice());
+  cRows.forEach(i=>{ for(let j=0;j<N;j++) g2[i][j]=false; });
+  cCols.forEach(j=>{ for(let i=0;i<N;i++) g2[i][j]=false; });
+
+  let holes=0, tight=0, filled=0;
+  for(let i=0;i<N;i++)for(let j=0;j<N;j++){
+    if(g2[i][j]){ filled++; continue; }
+    let f=0;
+    for(const [a,b] of NB){ const ni=i+a,nj=j+b; if(ni<0||ni>=N||nj<0||nj>=N||g2[ni][nj]) f++; }
+    if(f===4) holes++;       // 完全に囲まれた空きマス＝悪い
+    else if(f===3) tight++;  // ほぼ囲まれた空きマス
+  }
+  score -= holes*15 + tight*3;  // 穴を作るほど減点
+  score -= filled*0.5;          // 盤が埋まるほどわずかに減点
+
+  return { score: Math.round(score), lines };
+}
+
+function bestMove(){
+  let best=null;
+  pieces.forEach((p,idx)=>{
+    if(p.used) return;
+    for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+      if(!canPlace(p.shape,r,c)) continue;
+      const e=evaluateAt(p.shape,r,c);
+      if(!best || e.score>best.score) best={idx,r,c,score:e.score,lines:e.lines};
+    }
+  });
+  return best;
+}
+
+function fmt(n){ return (n>=0?'+':'') + n; }
+function evalText(e){ return `評価 ${fmt(e.score)}${e.lines?` ・${e.lines}列消し`:''}`; }
+
+function clearSugg(){
+  document.querySelectorAll('.cell.sugg').forEach(c=>c.classList.remove('sugg'));
+  pieces.forEach((_,i)=>{ const el=tray.children[i]; if(el) el.style.transform=''; });
+}
+
+let hintTimer=null;
+hintBtn.addEventListener('click', ()=>{
+  if(drag) return;
+  clearSugg();
+  const m=bestMove();
+  if(!m){ readout.textContent='置ける場所がありません'; return; }
+  const p=pieces[m.idx];
+  for(const [dr,dc] of p.shape) cells[m.r+dr][m.c+dc].classList.add('sugg');
+  const tEl=tray.children[m.idx]; if(tEl) tEl.style.transform='scale(1.12)';
+  readout.textContent = `おすすめ ${evalText({score:m.score,lines:m.lines})}`;
+  clearTimeout(hintTimer);
+  hintTimer=setTimeout(clearSugg, 2600);
+});
 
 function place(idx, r, c){
   const p = pieces[idx];
