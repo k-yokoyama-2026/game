@@ -172,6 +172,7 @@ button:active{transform:scale(.96)}
   <button id="restart-btn" onclick="location.reload()">もう一度遊ぶ</button>
 </div>
 
+<script src="core.js"></script>
 <script>
 "use strict";
 
@@ -252,33 +253,35 @@ function showScreen(id){
 }
 
 /* ===== CUSTOMER GENERATION ===== */
+function makeDeposit(){
+  const name = pick(NAMES);
+  const base = rand(5,50)*100000;
+  const amount = base + rand(0,5)*100000;
+  return { name, type:"deposit", amount, desc:`預金希望: ¥${fmt(amount)}（期間: ${rand(3,12)}ヶ月）` };
+}
+function makeLoan(){
+  const name = pick(NAMES);
+  const risk = Math.random();
+  let riskLabel, riskChance;
+  if(risk<0.5){riskLabel="低リスク";riskChance=0.03;}
+  else if(risk<0.8){riskLabel="中リスク";riskChance=0.10;}
+  else {riskLabel="高リスク";riskChance=0.20;}
+  const base = rand(10,100)*100000;
+  const amount = base + rand(0,10)*100000;
+  return { name, type:"loan", amount, riskLabel, riskChance, desc:`融資希望: ¥${fmt(amount)}（${riskLabel}）` };
+}
 function generateCustomers(){
   G.pendingCustomers=[];
-  const count = rand(2,4) + Math.floor(G.reputation/2);
-  for(let i=0;i<count;i++){
-    const isDeposit = Math.random()<0.55;
-    const name = pick(NAMES);
-    if(isDeposit){
-      const base = rand(5,50)*100000;
-      const amount = base + rand(0,5)*100000;
-      G.pendingCustomers.push({
-        name, type:"deposit", amount,
-        desc:`預金希望: ¥${fmt(amount)}（期間: ${rand(3,12)}ヶ月）`
-      });
-    } else {
-      const risk = Math.random();
-      let riskLabel, riskChance;
-      if(risk<0.5){riskLabel="低リスク";riskChance=0.03;}
-      else if(risk<0.8){riskLabel="中リスク";riskChance=0.10;}
-      else {riskLabel="高リスク";riskChance=0.20;}
-      const base = rand(10,100)*100000;
-      const amount = base + rand(0,10)*100000;
-      G.pendingCustomers.push({
-        name, type:"loan", amount, riskLabel, riskChance,
-        desc:`融資希望: ¥${fmt(amount)}（${riskLabel}）`
-      });
-    }
-  }
+  // 金利と評判で客足が決まる（預金金利↑で預金客↑、融資金利↓で借り手↑）
+  const d = BankCore.demandCounts(G.reputation, G.depositRate, G.loanRate);
+  const depositCount = Math.min(6, d.depositCount);
+  const loanCount = Math.min(6, d.loanCount);
+  const list = [];
+  for(let i=0;i<depositCount;i++) list.push(makeDeposit());
+  for(let i=0;i<loanCount;i++) list.push(makeLoan());
+  // ランダムに並べる
+  list.sort(()=>Math.random()-0.5);
+  G.pendingCustomers = list;
 }
 
 /* ===== CUSTOMER ACTIONS ===== */
@@ -331,42 +334,48 @@ function nextTurn(){
   if(G.gameOver) return;
 
   // Monthly interest earned from loans
-  const loanInterest = Math.floor(G.loans * (G.loanRate/100) / 12);
+  const loanInterest = BankCore.loanInterest(G.loans, G.loanRate);
   G.cash += loanInterest;
   G.interestEarned += loanInterest;
   addLog(`融資利息収入: +¥${fmt(loanInterest)}`);
 
   // Monthly interest paid on deposits
-  const depositInterest = Math.floor(G.deposits * (G.depositRate/100) / 12);
+  const depositInterest = BankCore.depositInterest(G.deposits, G.depositRate);
   G.cash -= depositInterest;
   G.interestPaid += depositInterest;
   addLog(`預金利息支払: -¥${fmt(depositInterest)}`);
 
   // Operating costs
-  const opCost = 200000 + Math.floor(G.deposits * 0.001);
+  const opCost = BankCore.operatingCost(G.deposits);
   G.cash -= opCost;
   addLog(`運営コスト: -¥${fmt(opCost)}`);
 
-  // Loan defaults
+  // Loan defaults / repayments
   const toRemove = [];
   G.customers.forEach((c,i)=>{
-    if(Math.random() < c.riskChance / 12){
+    const r = BankCore.loanOutcome(c);
+    if(r.defaulted){
       addLog(`⚠ ${c.name}が返済不能！ ¥${fmt(c.amount)} の損失`);
       G.loans -= c.amount;
       G.defaultedLoans += c.amount;
       toRemove.push(i);
-    } else {
-      // Partial repayment
-      const repay = Math.floor(c.amount * 0.08);
-      if(repay > 0){
-        c.amount -= repay;
-        G.loans -= repay;
-        G.cash += repay;
-        if(c.amount <= 0) toRemove.push(i);
-      }
+    } else if(r.repay > 0){
+      c.amount -= r.repay;
+      G.loans -= r.repay;
+      G.cash += r.repay;
+      if(c.amount <= 0) toRemove.push(i);
     }
   });
   for(let i=toRemove.length-1;i>=0;i--) G.customers.splice(toRemove[i],1);
+
+  // 流動性リスク：現金が預金の10%未満だと取り付け騒ぎ
+  if(BankCore.bankRunRisk(G.cash, G.deposits)){
+    const withdraw = Math.floor(G.deposits * 0.2);
+    G.deposits -= withdraw;
+    G.cash -= withdraw;
+    G.reputation = Math.max(0, G.reputation - 0.5);
+    addLog(`🏃 取り付け騒ぎ！預金者が ¥${fmt(withdraw)} を引き出した（現金不足）`);
+  }
 
   // Monthly profit
   const monthProfit = loanInterest - depositInterest - opCost;
@@ -389,16 +398,9 @@ function nextTurn(){
 
   // Check end conditions
   const assets = G.cash + G.loans;
-  if(G.cash < 0 || assets < 0){
-    G.gameOver = true;
-    endGame(false);
-    return;
-  }
-  if(G.month > G.maxMonth){
-    G.gameOver = true;
-    endGame(assets >= G.targetAssets);
-    return;
-  }
+  const result = BankCore.endState(G.cash, assets, G.month, G.maxMonth, G.targetAssets);
+  if(result === 'lose'){ G.gameOver = true; endGame(false); return; }
+  if(result === 'win'){ G.gameOver = true; endGame(true); return; }
 
   // Generate new customers
   generateCustomers();
