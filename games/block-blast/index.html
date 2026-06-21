@@ -298,6 +298,7 @@ button.btn:active { transform: translateY(2px); }
 
 <a class="home" href="../../">← ゲーム一覧へ</a>
 
+<script src="../_shared/audio.js"></script>
 <script src="core.js"></script>
 <script>
 const N = BlockCore.N;
@@ -397,23 +398,8 @@ function updateAura(){
 }
 
 // ---- 音（Web Audio で合成）と振動 ----
-let actx = null;
-function audio(){
-  if(!actx){ try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
-  if(actx && actx.state==='suspended') actx.resume();
-  return actx;
-}
-function beep(freq, dur, type, gain, when){
-  const a = audio(); if(!a) return;
-  const t = a.currentTime + (when||0);
-  const o = a.createOscillator(), g = a.createGain();
-  o.type = type||'sine'; o.frequency.value = freq;
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(gain, t+0.012);
-  g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
-  o.connect(g).connect(a.destination);
-  o.start(t); o.stop(t+dur+0.03);
-}
+function audio(){ return AudioFX.unlock(); }
+function beep(freq, dur, type, gain, when){ AudioFX.tone(freq, dur, type, gain, when); }
 function sndPlace(){ beep(180+Math.random()*60, 0.08, 'triangle', 0.12); }
 function sndClear(lines){
   const lv = level();
@@ -761,6 +747,7 @@ document.getElementById('startBtn').addEventListener('click', () => {
 
 // 盤は最初から用意（タイトルは上に重ねて表示）
 newGame();
+AudioFX.mountButton();
 </script>
 </body>
 </html>

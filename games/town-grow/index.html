@@ -73,6 +73,7 @@ canvas{display:block;width:100%;flex:0 0 42%}
   </div>
 </div>
 
+<script src="../_shared/audio.js"></script>
 <script src="core.js"></script>
 <script>
 const cv = document.getElementById('cv');
@@ -313,6 +314,7 @@ function showEnd(won){
 // Sound
 let audioCtx=null;
 function playSound(kind){
+  if(window.AudioFX && AudioFX.isMuted()) return;
   try{
     audioCtx=audioCtx||new(window.AudioContext||window.webkitAudioContext)();
     if(audioCtx.state==='suspended')audioCtx.resume();
@@ -530,6 +532,7 @@ function animLoop(){
 resize();
 drawScene();
 requestAnimationFrame(animLoop);
+AudioFX.mountButton();
 </script>
 </body>
 </html>

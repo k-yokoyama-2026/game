@@ -158,28 +158,15 @@ canvas { display: block; }
   <button class="btn" id="next-level-btn">次のレベルへ</button>
 </div>
 
+<script src="../_shared/audio.js"></script>
 <script src="core.js"></script>
 <script>
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
 // --- Sound (Web Audioで合成・音源ファイル不要) ---
-let actx = null;
-function audio() {
-  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
-  if (actx && actx.state === 'suspended') actx.resume();
-  return actx;
-}
-function beep(freq, dur, type, gain, when) {
-  const a = audio(); if (!a) return;
-  const t = a.currentTime + (when || 0);
-  const o = a.createOscillator(), g = a.createGain();
-  o.type = type || 'sine'; o.frequency.value = freq;
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(gain, t + 0.01);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.02);
-}
+function audio() { return AudioFX.unlock(); }
+function beep(freq, dur, type, gain, when) { AudioFX.tone(freq, dur, type, gain, when); }
 const SFX = {
   hit(combo) { beep(420 + Math.min(combo, 12) * 30, 0.09, 'square', 0.13); },
   tick() { beep(260, 0.05, 'triangle', 0.08); },
@@ -841,6 +828,7 @@ function gameLoop() {
   requestAnimationFrame(gameLoop);
 }
 gameLoop();
+AudioFX.mountButton();
 </script>
 </body>
 </html>
