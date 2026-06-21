@@ -300,9 +300,17 @@ function buildActions() {
   c.onclick = openColl; wrap.appendChild(c);
 }
 
+function petStage(level) { return level <= 33 ? 'あかちゃん' : level <= 66 ? 'こども' : 'おとな'; }
+function updateGrowth() {
+  const s = game.state;
+  $('petName').textContent = `${PetCore.ANIMALS[s.animal].name}（${petStage(s.level)}）`;
+  // レベルが上がるほどペットが大きく育つ（5.2rem → 8.5rem）
+  $('pet').style.fontSize = (5.2 + Math.min(s.level, PetCore.MAX_LEVEL) / PetCore.MAX_LEVEL * 3.3).toFixed(2) + 'rem';
+}
+
 function renderAll() {
   const s = game.state;
-  $('petName').textContent = PetCore.ANIMALS[s.animal].name;
+  updateGrowth();
   $('lvText').textContent = `Lv ${Math.min(s.level, PetCore.MAX_LEVEL)}`;
   $('heartText').textContent = '❤️'.repeat(s.hearts) + '🤍'.repeat(Math.max(0, s.maxHearts - s.hearts));
   $('coinText').textContent = s.coins;
@@ -369,7 +377,7 @@ function doAction(a) {
     renderCombo();
     if (r.cleared) { return endCleared(); }
     if (r.leveledUp) {
-      SFX.level(); confetti(14);
+      SFX.level(); confetti(14); updateGrowth();
       showToast(`Lv ${s.level}！ ガチャチャンス🎰 (+${r.bonus}🪙)`);
       const gb = $('gachaBtn'); gb.classList.add('glow'); setTimeout(() => gb.classList.remove('glow'), 4000);
     }

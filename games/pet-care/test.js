@@ -104,6 +104,7 @@ section('Lv100クリア（完璧プレイ）');
   ok(g.state.status === 'cleared', 'クリア状態になる');
   ok(g.state.cleared.includes('cat'), 'クリア済みにcatが入る');
   ok(g.state.coins > 0, 'コインが貯まっている: ' + g.state.coins);
+  ok(g.state.coins < 25000, 'コインのインフレが抑えられている(<25000): ' + g.state.coins);
   ok(g.state.level > C.MAX_LEVEL, 'レベルが100を超えた: ' + g.state.level);
   console.log('  → クリアまでのタップ数: ' + taps + ' / 最終コイン: ' + g.state.coins + ' / ベストコンボ: ' + g.state.bestCombo);
 }
@@ -116,7 +117,7 @@ section('ガチャ');
   const before = g.state.coins;
   const r = g.spinGacha('rare');
   ok(r.ok === true, 'コイン足りればガチャ成功');
-  ok(g.state.coins === before - 90, 'レアは90コイン消費');
+  ok(g.state.coins === before - 120, 'レアは120コイン消費');
   ok(g.state.collection[r.item] === 1, '景品がコレクションに追加');
 
   g.state.coins = 10;

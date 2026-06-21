@@ -40,9 +40,9 @@
   const GACHA = [
     { id: 'normal', name: 'ノーマル',     cost: 30,  color: '#5b9bd5', icon: '🎁',
       pool: ['🎀', '🧶', '⚽', '🦴', '🍪', '🧦', '🪀', '🍬', '🎈'] },
-    { id: 'rare',   name: 'レア',         cost: 90,  color: '#7c4dff', icon: '💜',
+    { id: 'rare',   name: 'レア',         cost: 120, color: '#7c4dff', icon: '💜',
       pool: ['👑', '🎩', '🕶️', '🎸', '🛹', '🎮', '🏅', '🧁'] },
-    { id: 'super',  name: 'スーパーレア', cost: 250, color: '#ff9800', icon: '🌟',
+    { id: 'super',  name: 'スーパーレア', cost: 400, color: '#ff9800', icon: '🌟',
       pool: ['💎', '🦄', '🌈', '🚀', '🐉', '👽', '🏆', '✨'] },
   ];
 
@@ -116,7 +116,7 @@
     }
 
     function rewardCoins() {
-      const base = 5 + Math.floor(state.level / 6);
+      const base = 3 + Math.floor(state.level / 10);             // インフレ抑制（緩やかに増加）
       const comboMult = 1 + Math.min(state.combo - 1, 4) * 0.5; // 最大3倍
       const neglect = avgStat() < 30 ? 0.5 : 1;                 // 放置しすぎると半減
       const gained = Math.max(1, Math.round(base * comboMult * coinMult() * neglect));
@@ -194,7 +194,7 @@
     function levelUp() {
       state.progress = 0;
       state.level++;
-      const bonus = 10 + state.level;
+      const bonus = 8 + Math.floor(state.level / 4);            // レベルアップ報酬も緩やかに
       state.coins += bonus;
       if (state.level > MAX_LEVEL) {
         if (!state.cleared.includes(state.animal)) state.cleared.push(state.animal);
