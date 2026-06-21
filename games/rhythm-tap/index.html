@@ -259,6 +259,7 @@ html, body {
   <button id="retry-btn">もう一回！</button>
 </div>
 
+<script src="core.js"></script>
 <script>
 // ===== Constants =====
 const GAME_DURATION = 60; // seconds
@@ -288,6 +289,8 @@ let score, combo, maxCombo, totalTaps, goodTaps, badTaps, missedItems;
 let timeLeft, gameTimer, spawnTimer, beatTimer, running;
 let stage, stageThresholds;
 let itemIdCounter;
+let feverEnd = 0;
+function feverActive() { return running && Date.now() < feverEnd; }
 
 // ===== DOM refs =====
 const titleScreen = document.getElementById('title-screen');
@@ -330,6 +333,7 @@ document.getElementById('retry-btn').addEventListener('click', startGame);
 
 function startGame() {
   score = 0; combo = 0; maxCombo = 0; totalTaps = 0; goodTaps = 0; badTaps = 0; missedItems = 0;
+  feverEnd = 0;
   timeLeft = GAME_DURATION; stage = 1; itemIdCounter = 0;
   stageThresholds = [15, 35, 60, 100]; // score thresholds for stage advancement
 
@@ -367,7 +371,7 @@ function scheduleNextSpawn() {
   if (!running) return;
   const elapsed = GAME_DURATION - timeLeft;
   const progress = elapsed / GAME_DURATION;
-  const interval = Math.max(SPAWN_INTERVAL_MIN, SPAWN_INTERVAL_BASE - progress * 400);
+  const interval = RhythmCore.spawnInterval(progress, SPAWN_INTERVAL_BASE, SPAWN_INTERVAL_MIN);
   // Add slight randomness to feel more natural
   const jitter = (Math.random() - 0.5) * interval * 0.4;
   spawnTimer = setTimeout(() => {
@@ -390,7 +394,10 @@ function updateHUD() {
   hudTime.textContent = Math.ceil(timeLeft);
   timerBar.style.width = (timeLeft / GAME_DURATION * 100) + '%';
 
-  if (combo >= 3) {
+  if (feverActive()) {
+    hudCombo.textContent = '🔥 フィーバー ' + (combo >= 3 ? combo + 'コンボ!' : '');
+    hudCombo.style.color = '#ffd93d';
+  } else if (combo >= 3) {
     hudCombo.textContent = combo + ' コンボ!';
     hudCombo.style.color = combo >= 10 ? '#ffd93d' : combo >= 5 ? '#ff6b9d' : '#6bcfff';
   } else {
@@ -400,7 +407,7 @@ function updateHUD() {
 
 // ===== Stage management =====
 function checkStage() {
-  const newStage = stageThresholds.filter(t => score >= t).length + 1;
+  const newStage = RhythmCore.stageFor(score, stageThresholds);
   if (newStage > stage && newStage <= 5) {
     stage = newStage;
     showStageBanner('ステージ ' + stage);
@@ -439,24 +446,17 @@ function spawnItem() {
   const elapsed = GAME_DURATION - timeLeft;
   const progress = elapsed / GAME_DURATION;
 
-  // Decide item type
+  // Decide item type（コアで抽選）
   let itemDef;
-  const r = Math.random();
-  const badChance = 0.15 + progress * 0.3; // 15% -> 45%
-  const goldenChance = 0.06; // 6% of all spawns
-
-  if (r < goldenChance) {
-    itemDef = GOLDEN_HEART;
-  } else if (r < goldenChance + badChance) {
-    itemDef = BAD_ITEMS[Math.floor(Math.random() * BAD_ITEMS.length)];
-  } else {
-    // Weight hearts slightly more than stars
-    itemDef = Math.random() < 0.45 ? GOOD_ITEMS[0] : GOOD_ITEMS[1];
-  }
+  const itype = RhythmCore.pickItemType(progress, Math.random);
+  if (itype === 'golden') itemDef = GOLDEN_HEART;
+  else if (itype === 'bad') itemDef = BAD_ITEMS[Math.floor(Math.random() * BAD_ITEMS.length)];
+  else if (itype === 'heart') itemDef = GOOD_ITEMS[0];
+  else itemDef = GOOD_ITEMS[1];
 
   const areaW = playArea.clientWidth;
   const areaH = playArea.clientHeight;
-  const size = Math.max(ITEM_SIZE_MIN, ITEM_SIZE_BASE - progress * 12);
+  const size = RhythmCore.itemSize(progress, ITEM_SIZE_BASE, ITEM_SIZE_MIN);
   const padding = 10;
   const x = padding + Math.random() * (areaW - size - padding * 2);
   const y = padding + Math.random() * (areaH - size - padding * 2);
@@ -496,7 +496,7 @@ function spawnItem() {
   playArea.appendChild(el);
 
   // Auto-remove after lifetime
-  const lifetime = Math.max(ITEM_LIFETIME_MIN, ITEM_LIFETIME_BASE - progress * 1300);
+  const lifetime = RhythmCore.itemLifetime(progress, ITEM_LIFETIME_BASE, ITEM_LIFETIME_MIN);
   const shrinkTime = 500;
 
   setTimeout(() => {
@@ -535,13 +535,17 @@ function tapItem(el) {
   if (pts > 0) {
     // Good tap
     goodTaps++;
-    const comboBonus = combo >= 10 ? 2 : combo >= 5 ? 1 : 0;
-    const totalPts = pts + comboBonus;
+    const totalPts = RhythmCore.scoreTap(pts, combo, feverActive());
     score += totalPts;
     combo++;
     if (combo > maxCombo) maxCombo = combo;
+    // フィーバー突入（コンボ10の倍数）
+    if (RhythmCore.feverShouldStart(combo)) {
+      feverEnd = Date.now() + RhythmCore.FEVER_MS;
+      showStageBanner('🔥 フィーバー！ 2倍！');
+    }
 
-    showScorePopup(cx, cy, '+' + totalPts, color);
+    showScorePopup(cx, cy, '+' + totalPts, feverActive() ? '#ffd93d' : color);
     spawnParticles(cx, cy, color, 8);
     showTapBurst(cx, cy, color);
 
@@ -555,6 +559,7 @@ function tapItem(el) {
     badTaps++;
     score += pts;
     combo = 0;
+    feverEnd = 0; // ミスでフィーバー終了
 
     showScorePopup(cx, cy, pts.toString(), '#ff4444');
     showTapBurst(cx, cy, '#ff4444');
@@ -658,14 +663,8 @@ function showResult() {
     `最大コンボ: ${maxCombo}<br>` +
     `正確率: ${accuracy}%`;
 
-  let rank, rankEmoji;
-  if (score >= 120) { rank = 'S'; rankEmoji = '👑'; }
-  else if (score >= 90) { rank = 'A'; rankEmoji = '🌟'; }
-  else if (score >= 60) { rank = 'B'; rankEmoji = '✨'; }
-  else if (score >= 35) { rank = 'C'; rankEmoji = '🎵'; }
-  else { rank = 'D'; rankEmoji = '🎶'; }
-
-  document.getElementById('result-rank').textContent = rankEmoji + ' ' + rank + 'ランク';
+  const r = RhythmCore.rank(score);
+  document.getElementById('result-rank').textContent = r.emoji + ' ' + r.rank + 'ランク';
 }
 
 // ===== Prevent context menu on long press =====
