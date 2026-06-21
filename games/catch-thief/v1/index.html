@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>泥棒をやっつけろ!</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif;
+  background: #1a1a2e;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+canvas { display: block; }
+#ui {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  display: flex; flex-direction: column;
+}
+#ui > * { pointer-events: auto; }
+#hud {
+  display: none;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(0,0,0,0.5);
+  color: #fff;
+  font-size: 16px;
+  font-weight: bold;
+  z-index: 10;
+}
+.hud-item { display: flex; align-items: center; gap: 4px; }
+#toolbar {
+  display: none;
+  position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.6);
+  border-radius: 16px;
+  padding: 8px 12px;
+  gap: 10px;
+  z-index: 10;
+}
+.tool-btn {
+  width: 56px; height: 56px;
+  border-radius: 12px;
+  border: 2px solid rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.1);
+  font-size: 28px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  color: #fff;
+  cursor: pointer;
+  position: relative;
+}
+.tool-btn.selected { border-color: #ffd700; background: rgba(255,215,0,0.3); }
+.tool-btn .count {
+  font-size: 11px;
+  position: absolute; bottom: 2px; right: 4px;
+}
+#title-screen, #gameover-screen, #level-clear-screen {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.85);
+  color: #fff;
+  z-index: 20;
+}
+#title-screen h1 { font-size: 36px; margin-bottom: 8px; }
+#title-screen .subtitle { font-size: 18px; color: #ffd700; margin-bottom: 30px; }
+.btn {
+  padding: 14px 40px;
+  font-size: 22px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+  color: #fff;
+  font-weight: bold;
+  cursor: pointer;
+  margin: 6px;
+}
+.btn:active { transform: scale(0.95); }
+#gameover-screen h2 { font-size: 32px; color: #ff6b6b; margin-bottom: 12px; }
+#gameover-screen .score-line { font-size: 20px; margin: 6px 0; }
+#level-clear-screen { display: none; }
+#level-clear-screen h2 { font-size: 28px; color: #ffd700; margin-bottom: 10px; }
+#combo-popup {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  font-size: 40px; font-weight: bold;
+  color: #ffd700;
+  text-shadow: 0 0 10px rgba(255,215,0,0.8);
+  pointer-events: none;
+  opacity: 0;
+  z-index: 15;
+  transition: opacity 0.3s;
+}
+#powerup-notice {
+  position: absolute; top: 30%; left: 50%;
+  transform: translate(-50%,-50%);
+  font-size: 24px; font-weight: bold;
+  color: #00ff88;
+  text-shadow: 0 0 10px rgba(0,255,136,0.8);
+  pointer-events: none;
+  opacity: 0;
+  z-index: 15;
+}
+#damage-flash {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(255,0,0,0.4);
+  pointer-events: none;
+  opacity: 0;
+  z-index: 12;
+}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="ui">
+  <div id="hud">
+    <div class="hud-item" id="hud-lives"></div>
+    <div class="hud-item" id="hud-level"></div>
+    <div class="hud-item" id="hud-score"></div>
+  </div>
+  <div id="toolbar"></div>
+</div>
+
+<div id="combo-popup"></div>
+<div id="powerup-notice"></div>
+<div id="damage-flash"></div>
+
+<div id="title-screen">
+  <div style="font-size:64px;margin-bottom:10px">🏠🔒</div>
+  <h1>泥棒をやっつけろ!</h1>
+  <div class="subtitle">家を守れ!泥棒を捕まえろ!</div>
+  <button class="btn" id="start-btn">ゲームスタート</button>
+  <div style="margin-top:20px;font-size:14px;color:#aaa;text-align:center;max-width:320px;line-height:1.6">
+    泥棒をタップして捕まえよう!<br>
+    道具を選んでフィールドに設置もできるよ!<br>
+    家に泥棒が入るとライフが減るよ!
+  </div>
+</div>
+
+<div id="gameover-screen" style="display:none">
+  <div style="font-size:64px;margin-bottom:10px">😱💔</div>
+  <h2>ゲームオーバー</h2>
+  <div class="score-line">スコア: <span id="final-score">0</span></div>
+  <div class="score-line">ハイスコア: <span id="high-score">0</span></div>
+  <div class="score-line">到達レベル: <span id="final-level">1</span></div>
+  <button class="btn" id="retry-btn">もう一度</button>
+</div>
+
+<div id="level-clear-screen">
+  <div style="font-size:64px;margin-bottom:10px">🎉✨</div>
+  <h2 id="level-clear-text">レベル1 クリア!</h2>
+  <div class="score-line" id="level-bonus-text"></div>
+  <button class="btn" id="next-level-btn">次のレベルへ</button>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+// --- Sizing ---
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// --- Game State ---
+const TOTAL_LEVELS = 18;
+let state = 'title'; // title, playing, levelclear, gameover, allclear
+let level = 1;
+let lives = 3;
+let score = 0;
+let highScore = parseInt(localStorage.getItem('catchThiefHigh') || '0');
+let combo = 0;
+let comboTimer = 0;
+let thieves = [];
+let traps = [];
+let powerups = [];
+let particles = [];
+let shakeTimer = 0;
+let freezeTimer = 0;
+let spawnTimer = 0;
+let spawnedCount = 0;
+let caughtCount = 0;
+let totalThievesForLevel = 0;
+let selectedTool = null; // null = tap mode, 'banana', 'net', 'alarm'
+let toolCounts = { banana: 3, net: 2, alarm: 1 };
+let damageFlashTimer = 0;
+
+// House position (center)
+function houseX() { return canvas.width / 2; }
+function houseY() { return canvas.height / 2; }
+const HOUSE_RADIUS = 50;
+
+// --- Level Config ---
+function getLevelConfig(lv) {
+  const base = 5 + lv * 2;
+  const speed = 0.6 + lv * 0.12;
+  const sneakyChance = lv >= 4 ? Math.min(0.1 + (lv - 4) * 0.04, 0.35) : 0;
+  const fastChance = lv >= 2 ? Math.min(0.1 + (lv - 2) * 0.04, 0.4) : 0;
+  const spawnInterval = Math.max(1800 - lv * 80, 500);
+  return { total: base, speed, sneakyChance, fastChance, spawnInterval };
+}
+
+// --- Thief Types ---
+const THIEF_EMOJIS = ['🥷', '🦹', '👤', '🕵️'];
+const FAST_EMOJIS = ['🏃', '💨'];
+const SNEAKY_EMOJIS = ['👻', '🫥'];
+
+function spawnThief() {
+  const cfg = getLevelConfig(level);
+  const angle = Math.random() * Math.PI * 2;
+  const dist = Math.max(canvas.width, canvas.height) * 0.6 + 40;
+  const x = houseX() + Math.cos(angle) * dist;
+  const y = houseY() + Math.sin(angle) * dist;
+
+  let type = 'normal';
+  const r = Math.random();
+  if (r < cfg.sneakyChance) type = 'sneaky';
+  else if (r < cfg.sneakyChance + cfg.fastChance) type = 'fast';
+
+  let speed = cfg.speed * (0.8 + Math.random() * 0.4);
+  let emoji, hp = 1, size = 36;
+  if (type === 'fast') {
+    speed *= 1.6;
+    emoji = FAST_EMOJIS[Math.floor(Math.random() * FAST_EMOJIS.length)];
+    size = 32;
+  } else if (type === 'sneaky') {
+    speed *= 0.8;
+    emoji = SNEAKY_EMOJIS[Math.floor(Math.random() * SNEAKY_EMOJIS.length)];
+    size = 34;
+  } else {
+    emoji = THIEF_EMOJIS[Math.floor(Math.random() * THIEF_EMOJIS.length)];
+    if (level >= 10) hp = Math.random() < 0.3 ? 2 : 1;
+  }
+
+  thieves.push({
+    x, y, speed, type, emoji, hp, size,
+    targetX: houseX(), targetY: houseY(),
+    alpha: type === 'sneaky' ? 0.25 : 1,
+    stunTimer: 0,
+    slowTimer: 0,
+    hitFlash: 0
+  });
+  spawnedCount++;
+}
+
+// --- Trap placement ---
+function placeTrap(x, y, type) {
+  if (toolCounts[type] <= 0) return false;
+  // Don't place on house
+  const dx = x - houseX(), dy = y - houseY();
+  if (Math.sqrt(dx*dx + dy*dy) < HOUSE_RADIUS + 20) return false;
+  toolCounts[type]--;
+  let emoji, radius;
+  if (type === 'banana') { emoji = '🍌'; radius = 30; }
+  else if (type === 'net') { emoji = '🪤'; radius = 40; }
+  else { emoji = '🚨'; radius = 60; }
+  traps.push({ x, y, type, emoji, radius, timer: type === 'alarm' ? 300 : 0, active: true });
+  updateToolbar();
+  return true;
+}
+
+// --- Power-up spawn ---
+function maybeSpawnPowerup() {
+  if (powerups.length >= 2) return;
+  if (Math.random() > 0.008) return;
+  const types = ['freeze', 'extralife', 'bomb', 'tools'];
+  const type = types[Math.floor(Math.random() * types.length)];
+  const margin = 60;
+  const x = margin + Math.random() * (canvas.width - margin * 2);
+  const y = margin + Math.random() * (canvas.height - margin * 2);
+  let emoji;
+  if (type === 'freeze') emoji = '❄️';
+  else if (type === 'extralife') emoji = '💖';
+  else if (type === 'bomb') emoji = '💣';
+  else emoji = '🧰';
+  powerups.push({ x, y, type, emoji, timer: 360 });
+}
+
+// --- Particles ---
+function addParticles(x, y, emoji, count) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1 + Math.random() * 3;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 1,
+      emoji: emoji || '✨',
+      life: 30 + Math.random() * 20,
+      size: 14 + Math.random() * 12
+    });
+  }
+}
+
+// --- Combo ---
+function addCombo() {
+  combo++;
+  comboTimer = 90;
+  if (combo >= 3) {
+    const popup = document.getElementById('combo-popup');
+    popup.textContent = `${combo}コンボ! x${Math.min(combo, 10)}`;
+    popup.style.opacity = '1';
+    setTimeout(() => popup.style.opacity = '0', 800);
+  }
+}
+
+function getComboMultiplier() {
+  return Math.min(combo, 10);
+}
+
+// --- Scoring ---
+function addScore(base) {
+  const mult = Math.max(1, getComboMultiplier());
+  const pts = base * mult;
+  score += pts;
+  return pts;
+}
+
+// --- Input ---
+function handleTap(px, py) {
+  if (state !== 'playing') return;
+
+  // Check power-ups first
+  for (let i = powerups.length - 1; i >= 0; i--) {
+    const p = powerups[i];
+    const dx = px - p.x, dy = py - p.y;
+    if (dx*dx + dy*dy < 35*35) {
+      activatePowerup(p);
+      powerups.splice(i, 1);
+      return;
+    }
+  }
+
+  // If tool selected, place trap
+  if (selectedTool) {
+    if (placeTrap(px, py, selectedTool)) {
+      if (toolCounts[selectedTool] <= 0) selectedTool = null;
+      updateToolbar();
+    }
+    return;
+  }
+
+  // Tap thieves
+  for (let i = thieves.length - 1; i >= 0; i--) {
+    const t = thieves[i];
+    const dx = px - t.x, dy = py - t.y;
+    const hitR = t.size * 0.8;
+    if (dx*dx + dy*dy < hitR * hitR) {
+      t.hp--;
+      t.hitFlash = 8;
+      if (t.hp <= 0) {
+        const pts = addScore(t.type === 'fast' ? 150 : t.type === 'sneaky' ? 200 : 100);
+        addCombo();
+        addParticles(t.x, t.y, '💥', 4);
+        addParticles(t.x, t.y, '⭐', 2);
+        thieves.splice(i, 1);
+        caughtCount++;
+      } else {
+        addParticles(t.x, t.y, '💫', 2);
+      }
+      return;
+    }
+  }
+}
+
+function activatePowerup(p) {
+  const notice = document.getElementById('powerup-notice');
+  addParticles(p.x, p.y, '🌟', 6);
+  if (p.type === 'freeze') {
+    freezeTimer = 180;
+    notice.textContent = '❄️ 全泥棒フリーズ!';
+  } else if (p.type === 'extralife') {
+    lives = Math.min(lives + 1, 5);
+    notice.textContent = '💖 ライフ回復!';
+    updateHUD();
+  } else if (p.type === 'bomb') {
+    const pts = thieves.length * 100;
+    score += pts;
+    thieves.forEach(t => {
+      addParticles(t.x, t.y, '💥', 3);
+      caughtCount++;
+    });
+    thieves = [];
+    notice.textContent = '💣 全泥棒撃退!';
+  } else if (p.type === 'tools') {
+    toolCounts.banana += 2;
+    toolCounts.net += 1;
+    toolCounts.alarm += 1;
+    notice.textContent = '🧰 道具補充!';
+    updateToolbar();
+  }
+  notice.style.opacity = '1';
+  setTimeout(() => notice.style.opacity = '0', 1200);
+}
+
+canvas.addEventListener('click', e => handleTap(e.clientX, e.clientY));
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  for (const touch of e.changedTouches) {
+    handleTap(touch.clientX, touch.clientY);
+  }
+}, { passive: false });
+
+// --- HUD ---
+function updateHUD() {
+  const heartsArr = [];
+  for (let i = 0; i < 5; i++) heartsArr.push(i < lives ? '❤️' : '🖤');
+  document.getElementById('hud-lives').textContent = heartsArr.join('');
+  document.getElementById('hud-level').textContent = `Lv.${level}`;
+  document.getElementById('hud-score').textContent = `${score}`;
+}
+
+// --- Toolbar ---
+function updateToolbar() {
+  const bar = document.getElementById('toolbar');
+  bar.innerHTML = '';
+  const tools = [
+    { id: 'banana', emoji: '🍌', label: 'バナナ' },
+    { id: 'net', emoji: '🪤', label: 'ネット' },
+    { id: 'alarm', emoji: '🚨', label: 'アラーム' },
+  ];
+  // Tap mode button
+  const tapBtn = document.createElement('div');
+  tapBtn.className = 'tool-btn' + (selectedTool === null ? ' selected' : '');
+  tapBtn.innerHTML = '👆<span style="font-size:10px">タップ</span>';
+  tapBtn.addEventListener('click', e => { e.stopPropagation(); selectedTool = null; updateToolbar(); });
+  tapBtn.addEventListener('touchstart', e => { e.stopPropagation(); });
+  bar.appendChild(tapBtn);
+
+  tools.forEach(t => {
+    const btn = document.createElement('div');
+    btn.className = 'tool-btn' + (selectedTool === t.id ? ' selected' : '');
+    btn.innerHTML = `${t.emoji}<span class="count">${toolCounts[t.id]}</span>`;
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      if (toolCounts[t.id] > 0) { selectedTool = t.id; updateToolbar(); }
+    });
+    btn.addEventListener('touchstart', e => { e.stopPropagation(); });
+    bar.appendChild(btn);
+  });
+}
+
+// --- Drawing ---
+function drawGame() {
+  const W = canvas.width, H = canvas.height;
+  const shake = shakeTimer > 0 ? (Math.random() - 0.5) * 6 : 0;
+  const shakeY = shakeTimer > 0 ? (Math.random() - 0.5) * 6 : 0;
+  ctx.save();
+  ctx.translate(shake, shakeY);
+
+  // Background - night sky gradient
+  const grad = ctx.createRadialGradient(W/2, H/2, 50, W/2, H/2, Math.max(W, H) * 0.7);
+  grad.addColorStop(0, '#2d3561');
+  grad.addColorStop(1, '#0f0c29');
+  ctx.fillStyle = grad;
+  ctx.fillRect(-10, -10, W + 20, H + 20);
+
+  // Ground
+  ctx.fillStyle = '#1a3a1a';
+  ctx.fillRect(-10, H * 0.55, W + 20, H * 0.5);
+
+  // Path lines toward house (decorative)
+  ctx.strokeStyle = 'rgba(100,100,80,0.3)';
+  ctx.lineWidth = 8;
+  for (let a = 0; a < 8; a++) {
+    const angle = a * Math.PI / 4;
+    ctx.beginPath();
+    ctx.moveTo(houseX(), houseY());
+    ctx.lineTo(houseX() + Math.cos(angle) * Math.max(W, H), houseY() + Math.sin(angle) * Math.max(W, H));
+    ctx.stroke();
+  }
+
+  // Traps
+  traps.forEach(t => {
+    if (!t.active) return;
+    ctx.globalAlpha = 0.7;
+    ctx.font = `28px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t.emoji, t.x, t.y);
+    // Range indicator
+    ctx.strokeStyle = 'rgba(255,255,0,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  });
+
+  // House
+  const hx = houseX(), hy = houseY();
+  ctx.font = `${HOUSE_RADIUS * 1.4}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🏠', hx, hy);
+  // Glow around house
+  ctx.beginPath();
+  ctx.arc(hx, hy, HOUSE_RADIUS + 10, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(255,220,100,${0.3 + Math.sin(Date.now() / 300) * 0.15})`;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Thieves
+  thieves.forEach(t => {
+    ctx.globalAlpha = freezeTimer > 0 ? Math.max(t.alpha, 0.5) : t.alpha;
+    if (t.hitFlash > 0) {
+      ctx.globalAlpha = 0.5 + Math.sin(t.hitFlash * 2) * 0.5;
+    }
+    // Sneaky thieves flicker
+    if (t.type === 'sneaky' && freezeTimer <= 0) {
+      ctx.globalAlpha = 0.15 + Math.sin(Date.now() / 200 + t.x) * 0.12;
+    }
+    ctx.font = `${t.size}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t.emoji, t.x, t.y);
+
+    // Stun indicator
+    if (t.stunTimer > 0) {
+      ctx.font = '16px sans-serif';
+      ctx.fillText('💫', t.x, t.y - t.size * 0.7);
+    }
+
+    // HP bar for hp > 1
+    if (t.hp > 1) {
+      ctx.fillStyle = '#ff4444';
+      ctx.fillRect(t.x - 15, t.y - t.size * 0.7, 30, 4);
+      ctx.fillStyle = '#44ff44';
+      ctx.fillRect(t.x - 15, t.y - t.size * 0.7, 15 * t.hp, 4);
+    }
+
+    ctx.globalAlpha = 1;
+  });
+
+  // Power-ups
+  powerups.forEach(p => {
+    const bob = Math.sin(Date.now() / 250 + p.x) * 4;
+    ctx.font = '32px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(p.emoji, p.x, p.y + bob);
+    // Glow
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 24, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,255,200,0.4)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+
+  // Particles
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life / 50;
+    ctx.font = `${p.size}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(p.emoji, p.x, p.y);
+  });
+  ctx.globalAlpha = 1;
+
+  // Freeze overlay
+  if (freezeTimer > 0) {
+    ctx.fillStyle = `rgba(100,200,255,${0.08 + Math.sin(Date.now()/200) * 0.04})`;
+    ctx.fillRect(-10, -10, W + 20, H + 20);
+  }
+
+  ctx.restore();
+}
+
+// --- Update ---
+function update() {
+  if (state !== 'playing') return;
+
+  const cfg = getLevelConfig(level);
+
+  // Spawn
+  if (spawnedCount < cfg.total) {
+    spawnTimer--;
+    if (spawnTimer <= 0) {
+      spawnThief();
+      spawnTimer = cfg.spawnInterval / 16; // Convert ms to approx frames
+    }
+  }
+
+  // Check level clear
+  if (caughtCount >= cfg.total && thieves.length === 0 && spawnedCount >= cfg.total) {
+    levelClear();
+    return;
+  }
+
+  // Combo decay
+  if (comboTimer > 0) {
+    comboTimer--;
+    if (comboTimer <= 0) combo = 0;
+  }
+
+  // Shake decay
+  if (shakeTimer > 0) shakeTimer--;
+  if (damageFlashTimer > 0) {
+    damageFlashTimer--;
+    document.getElementById('damage-flash').style.opacity = damageFlashTimer / 20;
+  }
+
+  // Freeze
+  if (freezeTimer > 0) freezeTimer--;
+
+  // Move thieves
+  thieves.forEach(t => {
+    if (t.stunTimer > 0) { t.stunTimer--; return; }
+    if (freezeTimer > 0) return;
+    const dx = t.targetX - t.x;
+    const dy = t.targetY - t.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > 2) {
+      const spd = t.slowTimer > 0 ? t.speed * 0.4 : t.speed;
+      t.x += (dx / dist) * spd;
+      t.y += (dy / dist) * spd;
+    }
+    if (t.slowTimer > 0) t.slowTimer--;
+    if (t.hitFlash > 0) t.hitFlash--;
+  });
+
+  // Check thief reaching house
+  for (let i = thieves.length - 1; i >= 0; i--) {
+    const t = thieves[i];
+    const dx = t.x - houseX(), dy = t.y - houseY();
+    if (Math.sqrt(dx*dx + dy*dy) < HOUSE_RADIUS) {
+      thieves.splice(i, 1);
+      caughtCount++; // counts toward level completion
+      lives--;
+      shakeTimer = 15;
+      damageFlashTimer = 20;
+      addParticles(houseX(), houseY(), '💔', 3);
+      updateHUD();
+      if (lives <= 0) {
+        gameOver();
+        return;
+      }
+    }
+  }
+
+  // Trap interactions
+  traps.forEach(trap => {
+    if (!trap.active) return;
+    thieves.forEach(t => {
+      const dx = t.x - trap.x, dy = t.y - trap.y;
+      if (Math.sqrt(dx*dx + dy*dy) < trap.radius) {
+        if (trap.type === 'banana' && t.stunTimer <= 0) {
+          t.stunTimer = 90;
+          t.slowTimer = 120;
+          addParticles(trap.x, trap.y, '🍌', 2);
+          trap.active = false;
+        } else if (trap.type === 'net' && t.stunTimer <= 0) {
+          t.stunTimer = 150;
+          t.hp--;
+          addParticles(trap.x, trap.y, '🪤', 2);
+          if (t.hp <= 0) {
+            addScore(100);
+            addCombo();
+            addParticles(t.x, t.y, '💥', 3);
+            t.hp = -999; // mark for removal
+          }
+          trap.active = false;
+        } else if (trap.type === 'alarm') {
+          t.slowTimer = Math.max(t.slowTimer, 60);
+          // Alarm reveals sneaky thieves
+          if (t.type === 'sneaky') t.alpha = 0.8;
+        }
+      }
+    });
+    if (trap.type === 'alarm') {
+      trap.timer--;
+      if (trap.timer <= 0) trap.active = false;
+    }
+  });
+
+  // Remove dead thieves from traps
+  for (let i = thieves.length - 1; i >= 0; i--) {
+    if (thieves[i].hp <= -999) {
+      caughtCount++;
+      thieves.splice(i, 1);
+    }
+  }
+
+  // Remove inactive traps
+  traps = traps.filter(t => t.active);
+
+  // Power-up spawning and decay
+  maybeSpawnPowerup();
+  powerups.forEach(p => p.timer--);
+  powerups = powerups.filter(p => p.timer > 0);
+
+  // Particles
+  particles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.05;
+    p.life--;
+  });
+  particles = particles.filter(p => p.life > 0);
+
+  updateHUD();
+}
+
+// --- Level management ---
+function startLevel(lv) {
+  level = lv;
+  thieves = [];
+  traps = [];
+  powerups = [];
+  particles = [];
+  spawnTimer = 30;
+  spawnedCount = 0;
+  caughtCount = 0;
+  freezeTimer = 0;
+  shakeTimer = 0;
+  combo = 0;
+  comboTimer = 0;
+  selectedTool = null;
+
+  // Replenish tools each level
+  toolCounts.banana = 3 + Math.floor(lv / 3);
+  toolCounts.net = 2 + Math.floor(lv / 4);
+  toolCounts.alarm = 1 + Math.floor(lv / 5);
+
+  state = 'playing';
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('toolbar').style.display = 'flex';
+  document.getElementById('level-clear-screen').style.display = 'none';
+  updateToolbar();
+  updateHUD();
+}
+
+function levelClear() {
+  state = 'levelclear';
+  const bonus = level * 200;
+  score += bonus;
+
+  if (level >= TOTAL_LEVELS) {
+    // All clear!
+    document.getElementById('level-clear-text').textContent = '全レベルクリア!おめでとう!🎊';
+    document.getElementById('level-bonus-text').textContent = `最終スコア: ${score}`;
+    document.getElementById('next-level-btn').textContent = 'タイトルへ';
+    document.getElementById('next-level-btn').onclick = () => {
+      document.getElementById('level-clear-screen').style.display = 'none';
+      showTitle();
+    };
+  } else {
+    document.getElementById('level-clear-text').textContent = `レベル${level} クリア!`;
+    document.getElementById('level-bonus-text').textContent = `クリアボーナス: +${bonus}点`;
+    document.getElementById('next-level-btn').textContent = '次のレベルへ';
+    document.getElementById('next-level-btn').onclick = () => startLevel(level + 1);
+  }
+  document.getElementById('level-clear-screen').style.display = 'flex';
+
+  if (score > highScore) {
+    highScore = score;
+    localStorage.setItem('catchThiefHigh', String(highScore));
+  }
+}
+
+function gameOver() {
+  state = 'gameover';
+  if (score > highScore) {
+    highScore = score;
+    localStorage.setItem('catchThiefHigh', String(highScore));
+  }
+  document.getElementById('final-score').textContent = score;
+  document.getElementById('high-score').textContent = highScore;
+  document.getElementById('final-level').textContent = level;
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('toolbar').style.display = 'none';
+  document.getElementById('gameover-screen').style.display = 'flex';
+}
+
+function showTitle() {
+  state = 'title';
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('toolbar').style.display = 'none';
+  document.getElementById('gameover-screen').style.display = 'none';
+  document.getElementById('title-screen').style.display = 'flex';
+}
+
+// --- Buttons ---
+document.getElementById('start-btn').addEventListener('click', () => {
+  document.getElementById('title-screen').style.display = 'none';
+  score = 0;
+  lives = 3;
+  startLevel(1);
+});
+
+document.getElementById('retry-btn').addEventListener('click', () => {
+  document.getElementById('gameover-screen').style.display = 'none';
+  score = 0;
+  lives = 3;
+  startLevel(1);
+});
+
+// --- Main Loop ---
+function gameLoop() {
+  update();
+  drawGame();
+  requestAnimationFrame(gameLoop);
+}
+gameLoop();
+</script>
+</body>
+</html>

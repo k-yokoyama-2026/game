@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>銀行ゲーム</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --primary:#1a5276;--primary-light:#2980b9;--primary-dark:#0e2f44;
+  --accent:#27ae60;--accent-dark:#1e8449;
+  --danger:#c0392b;--danger-light:#e74c3c;
+  --warn:#f39c12;
+  --bg:#ecf0f1;--card:#fff;--text:#2c3e50;--text-light:#7f8c8d;
+  --shadow:0 2px 8px rgba(0,0,0,.12);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN",Meiryo,sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;overflow-x:hidden}
+button{font-family:inherit;cursor:pointer;border:none;border-radius:8px;padding:12px 20px;font-size:1rem;font-weight:600;transition:all .15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+button:active{transform:scale(.96)}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-light)}
+.btn-accept{background:var(--accent);color:#fff}
+.btn-accept:hover{background:var(--accent-dark)}
+.btn-reject{background:var(--danger);color:#fff}
+.btn-reject:hover{background:var(--danger-light)}
+.btn-action{background:var(--primary-light);color:#fff;padding:10px 16px;font-size:.9rem}
+.btn-small{padding:8px 14px;font-size:.85rem}
+
+.screen{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100dvh;padding:20px;width:100%}
+.screen.active{display:flex}
+
+/* Title */
+#title-screen{background:linear-gradient(135deg,var(--primary-dark),var(--primary),var(--primary-light));color:#fff;text-align:center;gap:24px}
+#title-screen h1{font-size:2.4rem;letter-spacing:.05em}
+#title-screen .subtitle{font-size:1.1rem;opacity:.85;margin-top:-12px}
+.bank-icon{font-size:4rem;margin-bottom:8px}
+.title-desc{max-width:400px;line-height:1.7;font-size:.95rem;opacity:.9}
+#start-btn{font-size:1.2rem;padding:16px 48px;border-radius:12px;background:#fff;color:var(--primary);margin-top:12px}
+
+/* Game */
+#game-screen{justify-content:flex-start;padding:0;background:var(--bg)}
+.top-bar{width:100%;background:var(--primary);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10}
+.top-bar .month{font-weight:700;font-size:1.05rem}
+.top-bar .bank-name{font-size:.85rem;opacity:.8}
+
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px;width:100%;max-width:600px;margin:0 auto}
+.stat-card{background:var(--card);border-radius:10px;padding:10px 12px;box-shadow:var(--shadow);text-align:center}
+.stat-card .label{font-size:.7rem;color:var(--text-light);margin-bottom:2px}
+.stat-card .value{font-size:1.05rem;font-weight:700}
+.stat-card .value.positive{color:var(--accent)}
+.stat-card .value.negative{color:var(--danger)}
+
+.rates-panel{background:var(--card);border-radius:12px;padding:14px;margin:8px 12px;box-shadow:var(--shadow);width:calc(100% - 24px);max-width:600px;margin-left:auto;margin-right:auto}
+.rates-panel h3{font-size:.9rem;margin-bottom:10px;color:var(--primary)}
+.rate-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.rate-row:last-child{margin-bottom:0}
+.rate-label{font-size:.85rem;flex:1}
+.rate-controls{display:flex;align-items:center;gap:8px}
+.rate-controls button{width:36px;height:36px;padding:0;border-radius:50%;font-size:1.2rem;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--text);border:2px solid #ddd}
+.rate-controls button:hover{border-color:var(--primary)}
+.rate-value{font-weight:700;min-width:50px;text-align:center;font-size:.95rem}
+
+.event-area{width:calc(100% - 24px);max-width:600px;margin:8px auto;min-height:60px}
+.event-card{background:var(--card);border-radius:12px;padding:14px;box-shadow:var(--shadow);border-left:4px solid var(--primary)}
+.event-card.good{border-left-color:var(--accent)}
+.event-card.bad{border-left-color:var(--danger)}
+.event-card.warn{border-left-color:var(--warn)}
+.event-card .event-title{font-weight:700;font-size:.95rem;margin-bottom:4px}
+.event-card .event-desc{font-size:.85rem;color:var(--text-light);line-height:1.5}
+
+.customer-area{width:calc(100% - 24px);max-width:600px;margin:8px auto}
+.customer-card{background:var(--card);border-radius:12px;padding:16px;box-shadow:var(--shadow);margin-bottom:8px}
+.customer-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.customer-name{font-weight:700;font-size:1rem}
+.customer-type{font-size:.75rem;padding:4px 8px;border-radius:12px;background:var(--bg);color:var(--text-light)}
+.customer-type.deposit{background:#e8f8f5;color:var(--accent)}
+.customer-type.loan{background:#fdedec;color:var(--danger)}
+.customer-details{font-size:.85rem;color:var(--text-light);line-height:1.6;margin-bottom:12px}
+.customer-actions{display:flex;gap:10px}
+.customer-actions button{flex:1}
+
+.turn-btn-area{width:calc(100% - 24px);max-width:600px;margin:12px auto 24px;text-align:center}
+#next-turn-btn{width:100%;padding:16px;font-size:1.1rem;border-radius:12px;background:var(--accent);color:#fff}
+#next-turn-btn:disabled{background:#bbb;cursor:not-allowed}
+
+.log-area{width:calc(100% - 24px);max-width:600px;margin:0 auto 8px}
+.log-area h3{font-size:.85rem;color:var(--text-light);margin-bottom:6px;padding:0 4px}
+.log-entries{max-height:120px;overflow-y:auto;background:var(--card);border-radius:10px;padding:10px;box-shadow:var(--shadow);font-size:.8rem;line-height:1.6;color:var(--text-light)}
+
+/* End */
+#end-screen{background:linear-gradient(135deg,var(--primary-dark),var(--primary));color:#fff;text-align:center;gap:20px}
+#end-screen h1{font-size:2rem}
+#end-screen .result-icon{font-size:4rem}
+.end-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:320px;width:100%}
+.end-stat{background:rgba(255,255,255,.15);border-radius:10px;padding:12px}
+.end-stat .label{font-size:.75rem;opacity:.7}
+.end-stat .value{font-size:1.2rem;font-weight:700;margin-top:4px}
+#restart-btn{font-size:1.1rem;padding:16px 48px;border-radius:12px;background:#fff;color:var(--primary);margin-top:8px}
+
+@media(max-width:400px){
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .stat-card .value{font-size:.95rem}
+  #title-screen h1{font-size:1.8rem}
+}
+</style>
+</head>
+<body>
+
+<!-- TITLE SCREEN -->
+<div id="title-screen" class="screen active">
+  <div class="bank-icon">🏦</div>
+  <h1>銀行ゲーム</h1>
+  <p class="subtitle">〜 あなたの銀行を育てよう 〜</p>
+  <p class="title-desc">預金を集め、融資を行い、金利を設定して銀行を経営しましょう。12ヶ月で資産を<strong>5,000万円</strong>以上に成長させれば勝利です！</p>
+  <button id="start-btn" onclick="startGame()">ゲーム開始</button>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="game-screen" class="screen">
+  <div class="top-bar">
+    <div>
+      <div class="bank-name">あなたの銀行</div>
+      <div class="month" id="month-display">1月 / 12月</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:.75rem;opacity:.7">評判</div>
+      <div id="reputation-display" style="font-weight:700">★★★☆☆</div>
+    </div>
+  </div>
+
+  <div class="stats-grid" id="stats-grid"></div>
+
+  <div class="rates-panel">
+    <h3>💰 金利設定</h3>
+    <div class="rate-row">
+      <span class="rate-label">預金金利</span>
+      <div class="rate-controls">
+        <button onclick="adjustRate('deposit',-0.1)">−</button>
+        <span class="rate-value" id="deposit-rate">1.0%</span>
+        <button onclick="adjustRate('deposit',0.1)">＋</button>
+      </div>
+    </div>
+    <div class="rate-row">
+      <span class="rate-label">融資金利</span>
+      <div class="rate-controls">
+        <button onclick="adjustRate('loan',-0.1)">−</button>
+        <span class="rate-value" id="loan-rate">3.0%</span>
+        <button onclick="adjustRate('loan',0.1)">＋</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="event-area" id="event-area"></div>
+  <div class="customer-area" id="customer-area"></div>
+
+  <div class="log-area">
+    <h3>📋 経営ログ</h3>
+    <div class="log-entries" id="log-entries"></div>
+  </div>
+
+  <div class="turn-btn-area">
+    <button id="next-turn-btn" onclick="nextTurn()">次の月へ進む ▶</button>
+  </div>
+</div>
+
+<!-- END SCREEN -->
+<div id="end-screen" class="screen">
+  <div class="result-icon" id="result-icon">🏆</div>
+  <h1 id="result-title">結果</h1>
+  <p id="result-desc"></p>
+  <div class="end-stats" id="end-stats"></div>
+  <button id="restart-btn" onclick="location.reload()">もう一度遊ぶ</button>
+</div>
+
+<script>
+"use strict";
+
+/* ===== GAME STATE ===== */
+const G = {
+  month: 1,
+  maxMonth: 12,
+  targetAssets: 50000000,
+  cash: 10000000,
+  deposits: 0,
+  loans: 0,
+  depositRate: 1.0,
+  loanRate: 3.0,
+  reputation: 3,
+  totalProfit: 0,
+  customers: [],
+  pendingCustomers: [],
+  log: [],
+  defaultedLoans: 0,
+  interestEarned: 0,
+  interestPaid: 0,
+  depositorCount: 0,
+  borrowerCount: 0,
+  gameOver: false
+};
+
+const NAMES = [
+  "田中太郎","佐藤花子","鈴木一郎","高橋美咲","渡辺健太",
+  "伊藤由美","山本翔太","中村さくら","小林大輔","加藤愛",
+  "吉田誠","山田恵子","松本拓也","井上真理","木村浩二",
+  "林美穂","斉藤光","清水直子","山口達也","森田優子",
+  "ABC株式会社","XYZ商事","大和産業","未来テック","緑風建設",
+  "桜不動産","星空運輸","富士製作所","海洋食品","雲上ホテル"
+];
+
+const EVENTS = [
+  {title:"好景気",desc:"経済が好調です。融資の需要が増加し、預金者も安心しています。",type:"good",
+    effect(g){g.reputation=Math.min(5,g.reputation+1);}},
+  {title:"景気後退",desc:"景気が悪化しています。融資の返済リスクが上昇しました。",type:"bad",
+    effect(g){g.defaultedLoans+=Math.floor(g.loans*0.05);}},
+  {title:"取り付け騒ぎ",desc:"噂が広がり、預金者が一斉に引き出しを要求しています！",type:"bad",
+    effect(g){const w=Math.floor(g.deposits*0.2);g.deposits-=w;g.cash-=w;addLog(`預金 ¥${fmt(w)} が引き出されました`);}},
+  {title:"中央銀行利下げ",desc:"中央銀行が金利を引き下げました。市場金利が低下しています。",type:"warn",
+    effect(g){g.depositRate=Math.max(0.1,g.depositRate-0.3);g.loanRate=Math.max(0.5,g.loanRate-0.3);}},
+  {title:"中央銀行利上げ",desc:"中央銀行が金利を引き上げました。市場金利が上昇しています。",type:"warn",
+    effect(g){g.depositRate+=0.3;g.loanRate+=0.3;}},
+  {title:"大口顧客来店",desc:"大口の資産家が銀行に興味を示しています。評判ボーナス！",type:"good",
+    effect(g){g.reputation=Math.min(5,g.reputation+1);}},
+  {title:"詐欺事件発覚",desc:"融資先の一社が詐欺を行っていたことが判明。損失が発生しました。",type:"bad",
+    effect(g){const loss=Math.floor(g.loans*0.08);g.loans-=loss;g.cash-=Math.min(g.cash,loss);g.defaultedLoans+=loss;addLog(`詐欺による損失: ¥${fmt(loss)}`);}},
+  {title:"地域発展",desc:"地域の再開発計画が発表され、不動産融資の需要が高まっています。",type:"good",
+    effect(g){g.reputation=Math.min(5,g.reputation+1);}},
+  {title:"規制強化",desc:"金融庁が規制を強化。コンプライアンスコストが増加しました。",type:"warn",
+    effect(g){g.cash-=Math.min(g.cash,500000);addLog("規制対応コスト: ¥500,000");}},
+  {title:"テクノロジー投資成功",desc:"デジタル化投資が実を結び、運営効率が向上しました。",type:"good",
+    effect(g){g.cash+=300000;addLog("効率化ボーナス: +¥300,000");}}
+];
+
+/* ===== HELPERS ===== */
+function fmt(n){return Math.abs(n).toLocaleString("ja-JP")}
+function fmtYen(n){
+  if(Math.abs(n)>=100000000) return (n/100000000).toFixed(1)+"億円";
+  if(Math.abs(n)>=10000) return (n/10000).toFixed(0)+"万円";
+  return "¥"+fmt(n);
+}
+function rand(a,b){return Math.floor(Math.random()*(b-a+1))+a}
+function pick(arr){return arr[rand(0,arr.length-1)]}
+
+function addLog(msg){
+  G.log.unshift(`[${G.month}月] ${msg}`);
+  if(G.log.length>50)G.log.pop();
+  renderLog();
+}
+
+function showScreen(id){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+/* ===== CUSTOMER GENERATION ===== */
+function generateCustomers(){
+  G.pendingCustomers=[];
+  const count = rand(2,4) + Math.floor(G.reputation/2);
+  for(let i=0;i<count;i++){
+    const isDeposit = Math.random()<0.55;
+    const name = pick(NAMES);
+    if(isDeposit){
+      const base = rand(5,50)*100000;
+      const amount = base + rand(0,5)*100000;
+      G.pendingCustomers.push({
+        name, type:"deposit", amount,
+        desc:`預金希望: ¥${fmt(amount)}（期間: ${rand(3,12)}ヶ月）`
+      });
+    } else {
+      const risk = Math.random();
+      let riskLabel, riskChance;
+      if(risk<0.5){riskLabel="低リスク";riskChance=0.03;}
+      else if(risk<0.8){riskLabel="中リスク";riskChance=0.10;}
+      else {riskLabel="高リスク";riskChance=0.20;}
+      const base = rand(10,100)*100000;
+      const amount = base + rand(0,10)*100000;
+      G.pendingCustomers.push({
+        name, type:"loan", amount, riskLabel, riskChance,
+        desc:`融資希望: ¥${fmt(amount)}（${riskLabel}）`
+      });
+    }
+  }
+}
+
+/* ===== CUSTOMER ACTIONS ===== */
+function acceptCustomer(idx){
+  const c = G.pendingCustomers[idx];
+  if(!c) return;
+  if(c.type==="deposit"){
+    G.deposits += c.amount;
+    G.cash += c.amount;
+    G.depositorCount++;
+    addLog(`${c.name}の預金 ¥${fmt(c.amount)} を受け入れ`);
+  } else {
+    if(G.cash < c.amount){
+      alert("現金が不足しています！");
+      return;
+    }
+    G.loans += c.amount;
+    G.cash -= c.amount;
+    G.borrowerCount++;
+    G.customers.push({name:c.name, amount:c.amount, riskChance:c.riskChance, riskLabel:c.riskLabel});
+    addLog(`${c.name}に ¥${fmt(c.amount)} を融資（${c.riskLabel}）`);
+  }
+  G.pendingCustomers.splice(idx,1);
+  G.reputation = Math.min(5, G.reputation + 0.1);
+  renderGame();
+}
+
+function rejectCustomer(idx){
+  const c = G.pendingCustomers[idx];
+  if(!c) return;
+  addLog(`${c.name}の${c.type==="deposit"?"預金":"融資"}申請を拒否`);
+  G.pendingCustomers.splice(idx,1);
+  G.reputation = Math.max(0, G.reputation - 0.15);
+  renderGame();
+}
+
+/* ===== RATE ADJUSTMENT ===== */
+function adjustRate(type, delta){
+  if(type==="deposit"){
+    G.depositRate = Math.max(0.1, Math.min(5.0, +(G.depositRate+delta).toFixed(1)));
+    document.getElementById("deposit-rate").textContent = G.depositRate.toFixed(1)+"%";
+  } else {
+    G.loanRate = Math.max(0.5, Math.min(10.0, +(G.loanRate+delta).toFixed(1)));
+    document.getElementById("loan-rate").textContent = G.loanRate.toFixed(1)+"%";
+  }
+}
+
+/* ===== TURN PROCESSING ===== */
+function nextTurn(){
+  if(G.gameOver) return;
+
+  // Monthly interest earned from loans
+  const loanInterest = Math.floor(G.loans * (G.loanRate/100) / 12);
+  G.cash += loanInterest;
+  G.interestEarned += loanInterest;
+  addLog(`融資利息収入: +¥${fmt(loanInterest)}`);
+
+  // Monthly interest paid on deposits
+  const depositInterest = Math.floor(G.deposits * (G.depositRate/100) / 12);
+  G.cash -= depositInterest;
+  G.interestPaid += depositInterest;
+  addLog(`預金利息支払: -¥${fmt(depositInterest)}`);
+
+  // Operating costs
+  const opCost = 200000 + Math.floor(G.deposits * 0.001);
+  G.cash -= opCost;
+  addLog(`運営コスト: -¥${fmt(opCost)}`);
+
+  // Loan defaults
+  const toRemove = [];
+  G.customers.forEach((c,i)=>{
+    if(Math.random() < c.riskChance / 12){
+      addLog(`⚠ ${c.name}が返済不能！ ¥${fmt(c.amount)} の損失`);
+      G.loans -= c.amount;
+      G.defaultedLoans += c.amount;
+      toRemove.push(i);
+    } else {
+      // Partial repayment
+      const repay = Math.floor(c.amount * 0.08);
+      if(repay > 0){
+        c.amount -= repay;
+        G.loans -= repay;
+        G.cash += repay;
+        if(c.amount <= 0) toRemove.push(i);
+      }
+    }
+  });
+  for(let i=toRemove.length-1;i>=0;i--) G.customers.splice(toRemove[i],1);
+
+  // Monthly profit
+  const monthProfit = loanInterest - depositInterest - opCost;
+  G.totalProfit += monthProfit;
+
+  // Random event (40% chance)
+  if(Math.random() < 0.4){
+    const ev = pick(EVENTS);
+    ev.effect(G);
+    renderEvent(ev);
+  } else {
+    document.getElementById("event-area").innerHTML = "";
+  }
+
+  // Reputation drift based on rates
+  if(G.depositRate >= 2.0) G.reputation = Math.min(5, G.reputation + 0.1);
+  if(G.depositRate < 0.5) G.reputation = Math.max(0, G.reputation - 0.2);
+
+  G.month++;
+
+  // Check end conditions
+  const assets = G.cash + G.loans;
+  if(G.cash < 0 || assets < 0){
+    G.gameOver = true;
+    endGame(false);
+    return;
+  }
+  if(G.month > G.maxMonth){
+    G.gameOver = true;
+    endGame(assets >= G.targetAssets);
+    return;
+  }
+
+  // Generate new customers
+  generateCustomers();
+  renderGame();
+}
+
+/* ===== RENDERING ===== */
+function renderStats(){
+  const assets = G.cash + G.loans;
+  const stats = [
+    {label:"総資産",value:fmtYen(assets),cls:assets>=0?"positive":"negative"},
+    {label:"現金",value:fmtYen(G.cash),cls:G.cash>=0?"positive":"negative"},
+    {label:"預金残高",value:fmtYen(G.deposits),cls:""},
+    {label:"融資残高",value:fmtYen(G.loans),cls:""},
+    {label:"累計利益",value:fmtYen(G.totalProfit),cls:G.totalProfit>=0?"positive":"negative"},
+    {label:"目標",value:fmtYen(G.targetAssets),cls:""},
+  ];
+  const grid = document.getElementById("stats-grid");
+  grid.innerHTML = stats.map(s=>`
+    <div class="stat-card">
+      <div class="label">${s.label}</div>
+      <div class="value ${s.cls}">${s.value}</div>
+    </div>
+  `).join("");
+}
+
+function renderReputation(){
+  const full = Math.floor(G.reputation);
+  const half = G.reputation - full >= 0.5 ? 1 : 0;
+  const empty = 5 - full - half;
+  document.getElementById("reputation-display").textContent =
+    "★".repeat(full) + (half?"☆":"") + "☆".repeat(Math.max(0,empty-(!half?0:0)));
+  // simpler approach
+  let stars = "";
+  for(let i=0;i<5;i++) stars += i < Math.round(G.reputation) ? "★" : "☆";
+  document.getElementById("reputation-display").textContent = stars;
+}
+
+function renderCustomers(){
+  const area = document.getElementById("customer-area");
+  if(G.pendingCustomers.length === 0){
+    area.innerHTML = '<div style="text-align:center;color:var(--text-light);padding:16px;font-size:.9rem">今月の来客はこれで全てです</div>';
+    return;
+  }
+  area.innerHTML = G.pendingCustomers.map((c,i)=>`
+    <div class="customer-card">
+      <div class="customer-header">
+        <span class="customer-name">${c.name}</span>
+        <span class="customer-type ${c.type}">${c.type==="deposit"?"預金":"融資"}</span>
+      </div>
+      <div class="customer-details">${c.desc}</div>
+      <div class="customer-actions">
+        <button class="btn-accept" onclick="acceptCustomer(${i})">承認</button>
+        <button class="btn-reject" onclick="rejectCustomer(${i})">拒否</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function renderEvent(ev){
+  document.getElementById("event-area").innerHTML = `
+    <div class="event-card ${ev.type}">
+      <div class="event-title">📢 ${ev.title}</div>
+      <div class="event-desc">${ev.desc}</div>
+    </div>
+  `;
+}
+
+function renderLog(){
+  document.getElementById("log-entries").innerHTML = G.log.slice(0,20).join("<br>");
+}
+
+function renderGame(){
+  document.getElementById("month-display").textContent = `${G.month}月 / ${G.maxMonth}月`;
+  document.getElementById("deposit-rate").textContent = G.depositRate.toFixed(1)+"%";
+  document.getElementById("loan-rate").textContent = G.loanRate.toFixed(1)+"%";
+  renderStats();
+  renderReputation();
+  renderCustomers();
+  renderLog();
+}
+
+/* ===== START / END ===== */
+function startGame(){
+  G.month=1; G.cash=10000000; G.deposits=0; G.loans=0;
+  G.depositRate=1.0; G.loanRate=3.0; G.reputation=3;
+  G.totalProfit=0; G.customers=[]; G.pendingCustomers=[];
+  G.log=[]; G.defaultedLoans=0; G.interestEarned=0;
+  G.interestPaid=0; G.depositorCount=0; G.borrowerCount=0;
+  G.gameOver=false;
+  document.getElementById("event-area").innerHTML="";
+  addLog("銀行が開業しました！初期資金: ¥10,000,000");
+  generateCustomers();
+  renderGame();
+  showScreen("game-screen");
+}
+
+function endGame(won){
+  const assets = G.cash + G.loans;
+  document.getElementById("result-icon").textContent = won ? "🏆" : "💸";
+  document.getElementById("result-title").textContent = won ? "経営成功！" : "破産...";
+  document.getElementById("result-desc").textContent = won
+    ? `おめでとうございます！12ヶ月で銀行を見事に成長させました！`
+    : `残念...銀行は経営困難に陥りました。もう一度挑戦しましょう！`;
+  document.getElementById("end-stats").innerHTML = [
+    {label:"最終資産",value:fmtYen(assets)},
+    {label:"累計利益",value:fmtYen(G.totalProfit)},
+    {label:"利息収入合計",value:fmtYen(G.interestEarned)},
+    {label:"利息支払合計",value:fmtYen(G.interestPaid)},
+    {label:"融資件数",value:G.borrowerCount+"件"},
+    {label:"不良債権",value:fmtYen(G.defaultedLoans)},
+  ].map(s=>`<div class="end-stat"><div class="label">${s.label}</div><div class="value">${s.value}</div></div>`).join("");
+  showScreen("end-screen");
+}
+</script>
+</body>
+</html>

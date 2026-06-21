@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ペットそだて</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body {
+  font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+  background: linear-gradient(180deg, #ffe9d6 0%, #ffd6c9 100%);
+  color: #5a3e2b;
+  min-height: 100dvh;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+.screen { display: none; height: 100dvh; flex-direction: column; }
+.screen.show { display: flex; }
+
+/* ===== 選択画面 ===== */
+#select { align-items: center; justify-content: center; gap: 1.5rem; padding: 1.5rem; }
+#select h1 { font-size: 2rem; text-align: center; }
+#select .sub { color: #a07a64; font-size: 1rem; margin-top: -0.6rem; }
+.animal-list { display: flex; flex-direction: column; gap: 1rem; width: 100%; max-width: 360px; }
+.animal-card {
+  position: relative;
+  background: #fff;
+  border-radius: 1.2rem;
+  padding: 1.1rem 1.3rem;
+  display: flex; align-items: center; gap: 1rem;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+  cursor: pointer; transition: transform 0.12s;
+}
+.animal-card:active { transform: scale(0.97); }
+.animal-card .face { font-size: 3rem; }
+.animal-card .info { flex: 1; }
+.animal-card .info h2 { font-size: 1.3rem; }
+.animal-card .info p { font-size: 0.85rem; color: #a07a64; }
+.animal-card .badge {
+  position: absolute; top: 0.6rem; right: 0.8rem;
+  font-size: 0.8rem; font-weight: 700; color: #fff;
+  background: #ffb74d; padding: 0.15rem 0.6rem; border-radius: 999px;
+}
+.animal-card .badge.clear { background: #66bb6a; }
+
+/* ===== ゲーム画面 ===== */
+#hud {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  background: rgba(255,255,255,0.55);
+  backdrop-filter: blur(4px);
+  font-weight: 700;
+}
+#hud .pet-name { font-size: 1rem; }
+#hud .lv { font-size: 0.95rem; color: #c06a3e; }
+#hud .spacer { flex: 1; }
+#hud .coins {
+  display: flex; align-items: center; gap: 0.25rem;
+  background: #fff5d6; color: #b8860b;
+  padding: 0.3rem 0.7rem; border-radius: 999px;
+  box-shadow: inset 0 0 0 2px #ffe08a; font-size: 1rem;
+}
+#progressBar { height: 8px; background: rgba(255,255,255,0.5); }
+#progressFill { height: 100%; width: 0%; background: linear-gradient(90deg,#ffb74d,#ff8a65); transition: width 0.3s; }
+
+#stage {
+  flex: 1; position: relative;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 0.6rem; padding: 0.5rem;
+  overflow: hidden;
+}
+#bubble {
+  position: relative;
+  background: #fff;
+  border-radius: 1.2rem;
+  padding: 0.7rem 1.2rem;
+  font-size: 1.05rem; font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  max-width: 90%; text-align: center;
+  opacity: 0; transform: translateY(8px) scale(0.9);
+  transition: opacity 0.25s, transform 0.25s;
+}
+#bubble.show { opacity: 1; transform: translateY(0) scale(1); }
+#bubble::after {
+  content: ''; position: absolute; bottom: -10px; left: 50%;
+  transform: translateX(-50%);
+  border: 10px solid transparent; border-top-color: #fff; border-bottom: 0;
+}
+#pet {
+  font-size: 7rem; line-height: 1;
+  transition: transform 0.15s;
+  filter: drop-shadow(0 8px 10px rgba(0,0,0,0.15));
+}
+#pet.happy { animation: bounce 0.6s ease; }
+#pet.shake { animation: nope 0.4s ease; }
+@keyframes bounce { 0%,100%{transform:translateY(0)} 30%{transform:translateY(-22px) scale(1.05)} 60%{transform:translateY(0) scale(0.97)} }
+@keyframes nope { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-10px) rotate(-4deg)} 75%{transform:translateX(10px) rotate(4deg)} }
+
+#stats { display: flex; gap: 0.6rem; width: 100%; max-width: 360px; }
+.stat { flex: 1; }
+.stat .lab { font-size: 0.75rem; text-align: center; margin-bottom: 2px; }
+.stat .bar { height: 10px; background: rgba(255,255,255,0.6); border-radius: 999px; overflow: hidden; }
+.stat .fill { height: 100%; transition: width 0.3s; }
+.stat.hunger .fill { background: #ff8a65; }
+.stat.clean .fill { background: #4fc3f7; }
+.stat.mood .fill { background: #ffca28; }
+
+#actions {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem; padding: 0.7rem; background: rgba(255,255,255,0.45);
+}
+.act {
+  background: #fff; border: none; border-radius: 0.9rem;
+  padding: 0.5rem 0.2rem; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+  font-family: inherit; color: #5a3e2b; transition: transform 0.1s;
+}
+.act:active { transform: scale(0.93); }
+.act .e { font-size: 1.7rem; }
+.act .l { font-size: 0.72rem; font-weight: 700; }
+.act.gacha { background: linear-gradient(180deg,#b388ff,#7c4dff); color: #fff; }
+.act.gacha.glow { animation: glow 1s ease-in-out infinite; }
+@keyframes glow { 0%,100%{box-shadow:0 3px 8px rgba(124,77,255,0.4)} 50%{box-shadow:0 0 18px rgba(124,77,255,0.9)} }
+
+/* floating feedback */
+.float {
+  position: absolute; font-size: 1.6rem; font-weight: 800;
+  pointer-events: none; z-index: 30;
+  animation: floatUp 0.9s ease forwards;
+}
+@keyframes floatUp { 0%{opacity:1; transform:translateY(0)} 100%{opacity:0; transform:translateY(-70px)} }
+
+#toast {
+  position: fixed; top: 18%; left: 50%; transform: translateX(-50%) translateY(-10px);
+  background: #5a3e2b; color: #fff; padding: 0.6rem 1.2rem; border-radius: 999px;
+  font-weight: 700; opacity: 0; pointer-events: none; z-index: 60; transition: opacity 0.3s, transform 0.3s;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ===== モーダル ===== */
+.modal {
+  display: none; position: fixed; inset: 0; z-index: 80;
+  background: rgba(0,0,0,0.45); align-items: center; justify-content: center; padding: 1rem;
+}
+.modal.show { display: flex; }
+.modal .box {
+  background: #fff8f0; border-radius: 1.4rem; padding: 1.3rem;
+  width: 100%; max-width: 380px; max-height: 86dvh; overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+}
+.modal .box h2 { text-align: center; margin-bottom: 0.8rem; }
+.modal .close { display: block; margin: 1rem auto 0; padding: 0.6rem 2rem; border: none; border-radius: 999px; background: #e88b5a; color: #fff; font-family: inherit; font-size: 1rem; cursor: pointer; }
+
+.gtier {
+  display: flex; align-items: center; gap: 0.8rem;
+  border-radius: 1rem; padding: 0.8rem 1rem; margin-bottom: 0.7rem;
+  color: #fff; cursor: pointer; transition: transform 0.1s;
+}
+.gtier:active { transform: scale(0.97); }
+.gtier.disabled { opacity: 0.45; }
+.gtier .gi { font-size: 2rem; }
+.gtier .gname { flex: 1; font-weight: 800; font-size: 1.1rem; }
+.gtier .gcost { font-weight: 800; }
+
+#gachaResult { text-align: center; }
+#gachaResult .spin { font-size: 5rem; line-height: 1.2; }
+#gachaResult .rarity { font-weight: 800; margin-top: 0.3rem; }
+
+#collGrid { display: grid; grid-template-columns: repeat(5,1fr); gap: 0.4rem; }
+.coll-item { background: #fff; border-radius: 0.7rem; padding: 0.4rem 0; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+.coll-item .ce { font-size: 1.6rem; }
+.coll-item .cc { font-size: 0.7rem; color: #a07a64; }
+.coll-empty { text-align: center; color: #a07a64; grid-column: 1/-1; padding: 1rem; }
+
+/* ===== クリア画面 ===== */
+#clear { align-items: center; justify-content: center; gap: 1rem; text-align: center; padding: 2rem; }
+#clear .big { font-size: 6rem; }
+#clear h1 { font-size: 2rem; }
+#clear p { color: #a07a64; }
+#clear button { padding: 0.8rem 2.2rem; border: none; border-radius: 999px; background: #e88b5a; color: #fff; font-family: inherit; font-size: 1.1rem; cursor: pointer; }
+
+.home { position: fixed; bottom: 0.5rem; left: 50%; transform: translateX(-50%); font-size: 0.8rem; color: #a07a64; text-decoration: none; z-index: 5; }
+</style>
+</head>
+<body>
+
+<!-- 選択画面 -->
+<div class="screen show" id="select">
+  <h1>🐾 ペットそだて</h1>
+  <p class="sub">そだてる どうぶつを えらんでね</p>
+  <div class="animal-list" id="animalList"></div>
+</div>
+
+<!-- ゲーム画面 -->
+<div class="screen" id="game">
+  <div id="hud">
+    <span class="pet-name" id="petName">ねこ</span>
+    <span class="lv" id="lvText">Lv 1</span>
+    <span class="spacer"></span>
+    <span class="coins">🪙 <span id="coinText">0</span></span>
+  </div>
+  <div id="progressBar"><div id="progressFill"></div></div>
+
+  <div id="stage">
+    <div id="bubble"></div>
+    <div id="pet">🐱</div>
+    <div id="stats">
+      <div class="stat hunger"><div class="lab">おなか</div><div class="bar"><div class="fill" id="fHunger"></div></div></div>
+      <div class="stat clean"><div class="lab">きれい</div><div class="bar"><div class="fill" id="fClean"></div></div></div>
+      <div class="stat mood"><div class="lab">きげん</div><div class="bar"><div class="fill" id="fMood"></div></div></div>
+    </div>
+  </div>
+
+  <div id="actions"></div>
+</div>
+
+<!-- クリア画面 -->
+<div class="screen" id="clear">
+  <div class="big" id="clearFace">🎉</div>
+  <h1>レベル100 たっせい！</h1>
+  <p id="clearMsg">りっぱに そだったね！<br>つぎの どうぶつを そだてよう！</p>
+  <button onclick="toSelect()">どうぶつをえらぶ</button>
+</div>
+
+<!-- ガチャ -->
+<div class="modal" id="gachaModal">
+  <div class="box">
+    <h2>🎰 ガチャガチャ</h2>
+    <div id="gachaTiers"></div>
+    <div id="gachaResult"></div>
+    <button class="close" onclick="closeGacha()">とじる</button>
+  </div>
+</div>
+
+<!-- コレクション -->
+<div class="modal" id="collModal">
+  <div class="box">
+    <h2>📦 コレクション</h2>
+    <div id="collGrid"></div>
+    <button class="close" onclick="document.getElementById('collModal').classList.remove('show')">とじる</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+<a class="home" href="../../../">← ゲーム一覧へ</a>
+
+<script>
+const MAX_LEVEL = 100;
+const STEPS_PER_LEVEL = 3;
+
+const ANIMALS = {
+  cat:     { name:'ねこ',     faces:{happy:'😸', normal:'🐱', sad:'😿'} },
+  dog:     { name:'いぬ',     faces:{happy:'🐶', normal:'🐶', sad:'🥺'} },
+  hamster: { name:'ハムスター', faces:{happy:'🐹', normal:'🐹', sad:'😣'} },
+};
+const ANIMAL_ORDER = ['cat','dog','hamster'];
+
+// お世話アクション（id は悩みの need と対応）
+const ACTIONS = [
+  { id:'feed',  label:'ごはん', emoji:'🍚', stat:'hunger' },
+  { id:'water', label:'おみず', emoji:'💧', stat:'hunger' },
+  { id:'bath',  label:'おふろ', emoji:'🛁', stat:'clean'  },
+  { id:'clean', label:'そうじ', emoji:'🧹', stat:'clean'  },
+  { id:'play',  label:'あそぶ', emoji:'🎾', stat:'mood'   },
+  { id:'pet',   label:'なでる', emoji:'🤚', stat:'mood'   },
+  { id:'sleep', label:'ねんね', emoji:'🛏️', stat:'mood'   },
+];
+
+const WORRIES = {
+  feed:  'おなかペコペコだよ〜',
+  water: 'のどが カラカラ…',
+  bath:  'からだが ベタベタする…',
+  clean: 'おうちが よごれてるよ',
+  play:  'たいくつで つまんない！',
+  pet:   'さみしいよ、なでて〜',
+  sleep: 'ねむくて たまらない…',
+};
+
+const STAT_GROUP = { hunger:['feed','water'], clean:['bath','clean'], mood:['play','pet','sleep'] };
+
+const GACHA = [
+  { id:'normal', name:'ノーマル', cost:30,  color:'#5b9bd5', icon:'🎁',
+    pool:['🎀','🧶','⚽','🦴','🍪','🧦','🪀','🍬','🎈'] },
+  { id:'rare',   name:'レア',     cost:90,  color:'#7c4dff', icon:'💜',
+    pool:['👑','🎩','🕶️','🎸','🛹','🎮','🏅','🧁'] },
+  { id:'super',  name:'スーパーレア', cost:250, color:'#ff9800', icon:'🌟',
+    pool:['💎','🦄','🌈','🚀','🐉','👽','🏆','✨'] },
+];
+
+// ===== セーブデータ =====
+let save = loadSave();
+function loadSave(){
+  try {
+    const s = JSON.parse(localStorage.getItem('petcare_save'));
+    if(s && s.collection) return s;
+  } catch(e){}
+  return { coins:0, collection:{}, cleared:[], current:null };
+}
+function persist(){ localStorage.setItem('petcare_save', JSON.stringify(save)); }
+
+// ===== ランタイム状態 =====
+let st = null; // { animal, level, progress, stats:{hunger,clean,mood}, worry }
+let busy = false;
+let decayTimer = null;
+
+// ===== 画面切替 =====
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('show'));
+  document.getElementById(id).classList.add('show');
+}
+
+function renderSelect(){
+  const list = document.getElementById('animalList');
+  list.innerHTML = '';
+  ANIMAL_ORDER.forEach(key=>{
+    const a = ANIMALS[key];
+    const card = document.createElement('div');
+    card.className = 'animal-card';
+    const cleared = save.cleared.includes(key);
+    const isCurrent = save.current && save.current.animal===key;
+    let badge = '';
+    if(cleared) badge = '<span class="badge clear">クリア★</span>';
+    else if(isCurrent) badge = `<span class="badge">Lv ${save.current.level}</span>`;
+    card.innerHTML = `
+      <span class="face">${a.faces.normal}</span>
+      <div class="info"><h2>${a.name}</h2><p>${isCurrent && !cleared ? 'つづきから そだてる' : 'タップで そだてる'}</p></div>
+      ${badge}`;
+    card.onclick = ()=> chooseAnimal(key);
+    list.appendChild(card);
+  });
+}
+
+function chooseAnimal(key){
+  if(save.current && save.current.animal===key && save.current.level>1 && !save.cleared.includes(key)){
+    st = save.current; // 続きから
+  } else {
+    st = { animal:key, level:1, progress:0, stats:{hunger:70, clean:70, mood:70} };
+    save.current = st;
+  }
+  persist();
+  startGame();
+}
+
+// ===== ゲーム開始 =====
+function startGame(){
+  buildActions();
+  updateHud();
+  updateStats();
+  showScreen('game');
+  newWorry();
+  if(decayTimer) clearInterval(decayTimer);
+  decayTimer = setInterval(decayTick, 4500);
+}
+
+function buildActions(){
+  const wrap = document.getElementById('actions');
+  wrap.innerHTML = '';
+  ACTIONS.forEach(a=>{
+    const b = document.createElement('button');
+    b.className = 'act';
+    b.innerHTML = `<span class="e">${a.emoji}</span><span class="l">${a.label}</span>`;
+    b.onclick = ()=> doAction(a);
+    wrap.appendChild(b);
+  });
+  const g = document.createElement('button');
+  g.className = 'act gacha';
+  g.id = 'gachaBtn';
+  g.innerHTML = `<span class="e">🎰</span><span class="l">ガチャ</span>`;
+  g.onclick = openGacha;
+  wrap.appendChild(g);
+
+  const c = document.createElement('button');
+  c.className = 'act';
+  c.innerHTML = `<span class="e">📦</span><span class="l">コレクション</span>`;
+  c.onclick = openColl;
+  wrap.appendChild(c);
+}
+
+function updateHud(){
+  document.getElementById('petName').textContent = ANIMALS[st.animal].name;
+  document.getElementById('lvText').textContent = `Lv ${st.level}`;
+  document.getElementById('coinText').textContent = save.coins;
+  document.getElementById('progressFill').style.width = (st.progress/STEPS_PER_LEVEL*100)+'%';
+}
+
+function updateStats(){
+  document.getElementById('fHunger').style.width = st.stats.hunger+'%';
+  document.getElementById('fClean').style.width = st.stats.clean+'%';
+  document.getElementById('fMood').style.width = st.stats.mood+'%';
+  updateFace();
+}
+
+function updateFace(){
+  const pet = document.getElementById('pet');
+  const f = ANIMALS[st.animal].faces;
+  const avg = (st.stats.hunger + st.stats.clean + st.stats.mood)/3;
+  pet.textContent = avg>=70 ? f.happy : (avg>=40 ? f.normal : f.sad);
+}
+
+// ===== 悩み（ステップ） =====
+function newWorry(){
+  // 一番低いステータスのグループから悩みを選ぶ（たまにランダム）
+  let stat;
+  const entries = Object.entries(st.stats).sort((a,b)=>a[1]-b[1]);
+  stat = (Math.random()<0.7) ? entries[0][0] : entries[Math.floor(Math.random()*3)][0];
+  const group = STAT_GROUP[stat];
+  const need = group[Math.floor(Math.random()*group.length)];
+  st.worry = need;
+  const bubble = document.getElementById('bubble');
+  bubble.textContent = WORRIES[need];
+  bubble.classList.add('show');
+}
+
+function doAction(a){
+  if(busy) return;
+  const pet = document.getElementById('pet');
+  // ステータスは少し回復
+  st.stats[a.stat] = Math.min(100, st.stats[a.stat]+18);
+  updateStats();
+
+  if(st.worry && a.id === st.worry){
+    // 悩み解決＝ステップクリア
+    busy = true;
+    st.stats[a.stat] = Math.min(100, st.stats[a.stat]+22);
+    st.stats.mood = Math.min(100, st.stats.mood+8);
+    updateStats();
+    document.getElementById('bubble').classList.remove('show');
+    pet.classList.remove('happy'); void pet.offsetWidth; pet.classList.add('happy');
+    floatText(a.emoji, '#ff8a65');
+
+    const reward = 5 + Math.floor(st.level/8);
+    save.coins += reward;
+    floatText('+'+reward+'🪙', '#b8860b', 30);
+    st.progress++;
+    updateHud();
+
+    if(st.progress >= STEPS_PER_LEVEL){
+      setTimeout(levelUp, 700);
+    } else {
+      setTimeout(()=>{ busy=false; newWorry(); }, 800);
+    }
+    persist();
+  } else {
+    // 悩みと違うお世話：少し喜ぶけどステップは進まない
+    pet.classList.remove('happy','shake'); void pet.offsetWidth;
+    pet.classList.add(st.worry ? 'shake' : 'happy');
+    floatText(a.emoji, '#bbb');
+  }
+}
+
+function levelUp(){
+  st.progress = 0;
+  st.level++;
+  const bonus = 12 + st.level;
+  save.coins += bonus;
+  persist();
+
+  if(st.level > MAX_LEVEL){
+    finishAnimal();
+    return;
+  }
+  updateHud();
+  showToast(`Lv ${st.level}！ ガチャチャンス🎰 (+${bonus}🪙)`);
+  const gb = document.getElementById('gachaBtn');
+  gb.classList.add('glow');
+  setTimeout(()=> gb.classList.remove('glow'), 4000);
+  busy = false;
+  newWorry();
+}
+
+function finishAnimal(){
+  if(!save.cleared.includes(st.animal)) save.cleared.push(st.animal);
+  save.current = null;
+  persist();
+  if(decayTimer) clearInterval(decayTimer);
+  document.getElementById('clearFace').textContent = ANIMALS[st.animal].faces.happy;
+  const allDone = ANIMAL_ORDER.every(k=> save.cleared.includes(k));
+  document.getElementById('clearMsg').innerHTML = allDone
+    ? 'ぜんぶの どうぶつを そだてたね！<br>きみは ペットマスター🏆'
+    : 'りっぱに そだったね！<br>つぎの どうぶつを そだてよう！';
+  showScreen('clear');
+}
+
+function decayTick(){
+  for(const k of ['hunger','clean','mood']) st.stats[k] = Math.max(0, st.stats[k]-4);
+  updateStats();
+  persist();
+}
+
+// ===== 演出 =====
+function floatText(txt, color, offsetX){
+  const stage = document.getElementById('stage');
+  const f = document.createElement('div');
+  f.className = 'float';
+  f.textContent = txt;
+  f.style.color = color;
+  const r = stage.getBoundingClientRect();
+  f.style.left = (r.width/2 + (offsetX||0) - 20 + (Math.random()*30-15)) + 'px';
+  f.style.top = (r.height/2 - 30) + 'px';
+  stage.appendChild(f);
+  setTimeout(()=> f.remove(), 900);
+}
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._t);
+  t._t = setTimeout(()=> t.classList.remove('show'), 2400);
+}
+
+// ===== ガチャ =====
+function openGacha(){
+  const tiers = document.getElementById('gachaTiers');
+  tiers.innerHTML = '';
+  document.getElementById('gachaResult').innerHTML = '';
+  GACHA.forEach(g=>{
+    const can = save.coins >= g.cost;
+    const el = document.createElement('div');
+    el.className = 'gtier' + (can?'':' disabled');
+    el.style.background = g.color;
+    el.innerHTML = `<span class="gi">${g.icon}</span><span class="gname">${g.name}</span><span class="gcost">🪙 ${g.cost}</span>`;
+    if(can) el.onclick = ()=> spinGacha(g);
+    tiers.appendChild(el);
+  });
+  document.getElementById('coinText').textContent = save.coins;
+  document.getElementById('gachaModal').classList.add('show');
+}
+function closeGacha(){ document.getElementById('gachaModal').classList.remove('show'); }
+
+function spinGacha(g){
+  if(save.coins < g.cost) return;
+  save.coins -= g.cost;
+  updateHud();
+  const res = document.getElementById('gachaResult');
+  document.getElementById('gachaTiers').style.pointerEvents = 'none';
+  res.innerHTML = `<div class="spin">🎁</div><div class="rarity">…</div>`;
+  const spinEl = res.querySelector('.spin');
+  let ticks = 0;
+  const iv = setInterval(()=>{
+    spinEl.textContent = g.pool[Math.floor(Math.random()*g.pool.length)];
+    if(++ticks > 16){
+      clearInterval(iv);
+      const item = g.pool[Math.floor(Math.random()*g.pool.length)];
+      spinEl.textContent = item;
+      res.querySelector('.rarity').innerHTML = `<b style="color:${g.color}">${g.name}</b> の ${item} をゲット！`;
+      save.collection[item] = (save.collection[item]||0)+1;
+      persist();
+      document.getElementById('gachaTiers').style.pointerEvents = '';
+      openGacha(); // ボタンの有効/無効を更新（結果は下に残す）
+      res.innerHTML = `<div class="spin">${item}</div><div class="rarity"><b style="color:${g.color}">${g.name}</b> の ${item} をゲット！</div>`;
+    }
+  }, 70);
+}
+
+// ===== コレクション =====
+function openColl(){
+  const grid = document.getElementById('collGrid');
+  grid.innerHTML = '';
+  const items = Object.entries(save.collection);
+  if(items.length===0){
+    grid.innerHTML = '<div class="coll-empty">まだ なにも ないよ。<br>ガチャを まわそう！</div>';
+  } else {
+    items.forEach(([item,count])=>{
+      const el = document.createElement('div');
+      el.className = 'coll-item';
+      el.innerHTML = `<div class="ce">${item}</div><div class="cc">×${count}</div>`;
+      grid.appendChild(el);
+    });
+  }
+  document.getElementById('collModal').classList.add('show');
+}
+
+function toSelect(){
+  st = null;
+  renderSelect();
+  showScreen('select');
+}
+
+// 初期表示
+renderSelect();
+</script>
+</body>
+</html>

@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>リズムタップ!</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+  background: #1a0a2e;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ===== Shared ===== */
+.screen { display:none; width:100%; height:100%; position:absolute; top:0; left:0; }
+.screen.active { display:flex; flex-direction:column; align-items:center; justify-content:center; }
+
+/* ===== Title screen ===== */
+#title-screen {
+  background: linear-gradient(135deg, #1a0a2e 0%, #2d1b69 50%, #1a0a2e 100%);
+  text-align: center;
+  gap: 18px;
+}
+#title-screen h1 {
+  font-size: 3rem;
+  background: linear-gradient(90deg, #ff6b9d, #ffd93d, #6bcfff, #ff6b9d);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shineTitle 3s linear infinite;
+}
+@keyframes shineTitle { 0%{background-position:0% 50%} 100%{background-position:300% 50%} }
+
+.title-items { font-size: 2.4rem; letter-spacing: 12px; }
+.instructions {
+  color: #c8b8e8; font-size: 0.95rem; line-height: 1.7;
+  max-width: 320px; padding: 0 16px;
+}
+.instructions span.heart { color: #ff6b9d; }
+.instructions span.star { color: #ffd93d; }
+.instructions span.bad { color: #888; }
+
+#start-btn {
+  margin-top: 12px; padding: 16px 56px;
+  font-size: 1.3rem; font-weight: bold;
+  border: none; border-radius: 50px;
+  background: linear-gradient(135deg, #ff6b9d, #ff8a65);
+  color: #fff; cursor: pointer;
+  box-shadow: 0 6px 24px rgba(255,107,157,0.4);
+  transition: transform 0.15s;
+}
+#start-btn:active { transform: scale(0.94); }
+
+/* ===== Game screen ===== */
+#game-screen {
+  background: linear-gradient(180deg, #0d0521 0%, #1a0a2e 40%, #2d1b69 100%);
+  position: relative;
+}
+
+/* HUD */
+#hud {
+  position: absolute; top: 0; left: 0; right: 0;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px; z-index: 10;
+  background: rgba(0,0,0,0.35);
+}
+#hud-score { font-size: 1.5rem; color: #ffd93d; font-weight: bold; }
+#hud-combo { font-size: 1rem; color: #6bcfff; min-width: 80px; text-align: center; }
+#hud-time { font-size: 1.2rem; color: #ff6b9d; font-weight: bold; min-width: 60px; text-align: right; }
+
+/* Timer bar */
+#timer-bar-wrap {
+  position: absolute; top: 52px; left: 0; right: 0; height: 4px;
+  background: rgba(255,255,255,0.1); z-index: 10;
+}
+#timer-bar {
+  height: 100%; width: 100%;
+  background: linear-gradient(90deg, #ff6b9d, #ffd93d);
+  transition: width 0.25s linear;
+}
+
+/* Stage banner */
+#stage-banner {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  font-size: 2.2rem; color: #fff; font-weight: bold;
+  text-shadow: 0 0 20px rgba(255,107,157,0.8);
+  z-index: 20; opacity: 0; pointer-events: none;
+}
+
+/* Beat line (visual pulse) */
+#beat-ring {
+  position: absolute; top: 50%; left: 50%;
+  width: 0; height: 0; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.08);
+  transform: translate(-50%,-50%);
+  pointer-events: none; z-index: 1;
+}
+
+/* Play area */
+#play-area {
+  position: absolute; top: 56px; bottom: 0; left: 0; right: 0;
+  overflow: hidden;
+}
+
+/* Items */
+.item {
+  position: absolute;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  animation: itemAppear 0.3s ease-out forwards;
+  transition: transform 0.08s;
+  z-index: 5;
+}
+.item:active { transform: scale(0.85) !important; }
+
+@keyframes itemAppear {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Shrink before disappearing */
+.item.shrinking {
+  animation: itemShrink 0.5s ease-in forwards !important;
+}
+@keyframes itemShrink {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.3); opacity: 0; }
+}
+
+/* Tap burst */
+.tap-burst {
+  position: absolute; pointer-events: none; z-index: 15;
+  animation: burstAnim 0.5s ease-out forwards;
+}
+@keyframes burstAnim {
+  0% { transform: translate(-50%,-50%) scale(0.3); opacity: 1; }
+  100% { transform: translate(-50%,-50%) scale(2); opacity: 0; }
+}
+
+/* Score popup */
+.score-popup {
+  position: absolute; pointer-events: none; z-index: 20;
+  font-size: 1.6rem; font-weight: bold;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  animation: popupFloat 0.8s ease-out forwards;
+}
+@keyframes popupFloat {
+  0% { transform: translate(-50%,0) scale(0.5); opacity: 1; }
+  50% { transform: translate(-50%,-40px) scale(1.2); opacity: 1; }
+  100% { transform: translate(-50%,-70px) scale(1); opacity: 0; }
+}
+
+/* Particles */
+.particle {
+  position: absolute; pointer-events: none; z-index: 14;
+  border-radius: 50%; width: 8px; height: 8px;
+}
+
+/* Combo flash */
+#combo-flash {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none; z-index: 2; opacity: 0;
+  background: radial-gradient(circle, rgba(255,215,61,0.15) 0%, transparent 70%);
+}
+
+/* ===== Result screen ===== */
+#result-screen {
+  background: linear-gradient(135deg, #1a0a2e 0%, #2d1b69 50%, #1a0a2e 100%);
+  text-align: center; gap: 16px;
+}
+#result-screen h2 {
+  font-size: 1.6rem; color: #c8b8e8;
+}
+#result-score {
+  font-size: 3.5rem; font-weight: bold;
+  background: linear-gradient(135deg, #ffd93d, #ff6b9d);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+#result-details {
+  color: #a89cc8; font-size: 0.95rem; line-height: 2;
+}
+#result-rank {
+  font-size: 4rem;
+  text-shadow: 0 0 30px rgba(255,215,61,0.6);
+}
+#retry-btn {
+  margin-top: 8px; padding: 14px 48px;
+  font-size: 1.2rem; font-weight: bold;
+  border: none; border-radius: 50px;
+  background: linear-gradient(135deg, #6bcfff, #a78bfa);
+  color: #fff; cursor: pointer;
+  box-shadow: 0 6px 24px rgba(107,207,255,0.3);
+  transition: transform 0.15s;
+}
+#retry-btn:active { transform: scale(0.94); }
+
+/* Stars background */
+.bg-stars {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none; overflow: hidden; z-index: 0;
+}
+.bg-star {
+  position: absolute; width: 3px; height: 3px;
+  background: #fff; border-radius: 50%;
+  animation: twinkle 2s ease-in-out infinite alternate;
+}
+@keyframes twinkle { 0%{opacity:0.2} 100%{opacity:0.8} }
+</style>
+</head>
+<body>
+
+<!-- ===== TITLE ===== -->
+<div id="title-screen" class="screen active">
+  <div class="bg-stars" id="title-stars"></div>
+  <div class="title-items">❤️ ⭐ 💣</div>
+  <h1>リズムタップ!</h1>
+  <div class="instructions">
+    リズムに合わせてアイテムをタップ！<br>
+    <span class="heart">❤️ ハート = 2点</span><br>
+    <span class="heart">💛 金ハート = 3点</span><br>
+    <span class="star">⭐ 星 = 1点</span><br>
+    <span class="bad">💣💀 = マイナス点</span><br><br>
+    コンボをつなげて高得点を目指そう！
+  </div>
+  <button id="start-btn">スタート！</button>
+</div>
+
+<!-- ===== GAME ===== -->
+<div id="game-screen" class="screen">
+  <div id="hud">
+    <div id="hud-score">0</div>
+    <div id="hud-combo"></div>
+    <div id="hud-time">60</div>
+  </div>
+  <div id="timer-bar-wrap"><div id="timer-bar"></div></div>
+  <div id="stage-banner"></div>
+  <div id="combo-flash"></div>
+  <div id="beat-ring"></div>
+  <div id="play-area"></div>
+</div>
+
+<!-- ===== RESULT ===== -->
+<div id="result-screen" class="screen">
+  <div class="bg-stars" id="result-stars"></div>
+  <h2>🎶 リザルト 🎶</h2>
+  <div id="result-score">0</div>
+  <div id="result-details"></div>
+  <div id="result-rank"></div>
+  <button id="retry-btn">もう一回！</button>
+</div>
+
+<script>
+// ===== Constants =====
+const GAME_DURATION = 60; // seconds
+const BPM = 120;
+const BEAT_MS = 60000 / BPM; // 500ms per beat
+const ITEM_LIFETIME_BASE = 2200; // ms before item disappears
+const ITEM_LIFETIME_MIN = 900;
+const SPAWN_INTERVAL_BASE = 600; // ms between spawns at start
+const SPAWN_INTERVAL_MIN = 200;
+const ITEM_SIZE_BASE = 64;
+const ITEM_SIZE_MIN = 52;
+
+// Item definitions
+const GOOD_ITEMS = [
+  { emoji: '❤️', pts: 2, color: '#ff6b9d', type: 'heart' },
+  { emoji: '⭐', pts: 1, color: '#ffd93d', type: 'star' },
+];
+const GOLDEN_HEART = { emoji: '💛', pts: 3, color: '#ffdd44', type: 'golden' };
+const BAD_ITEMS = [
+  { emoji: '💣', pts: -2, color: '#555', type: 'bomb' },
+  { emoji: '💀', pts: -1, color: '#888', type: 'skull' },
+  { emoji: '👾', pts: -1, color: '#9b59b6', type: 'alien' },
+];
+
+// ===== State =====
+let score, combo, maxCombo, totalTaps, goodTaps, badTaps, missedItems;
+let timeLeft, gameTimer, spawnTimer, beatTimer, running;
+let stage, stageThresholds;
+let itemIdCounter;
+
+// ===== DOM refs =====
+const titleScreen = document.getElementById('title-screen');
+const gameScreen = document.getElementById('game-screen');
+const resultScreen = document.getElementById('result-screen');
+const hudScore = document.getElementById('hud-score');
+const hudCombo = document.getElementById('hud-combo');
+const hudTime = document.getElementById('hud-time');
+const timerBar = document.getElementById('timer-bar');
+const playArea = document.getElementById('play-area');
+const stageBanner = document.getElementById('stage-banner');
+const comboFlash = document.getElementById('combo-flash');
+const beatRing = document.getElementById('beat-ring');
+
+// ===== Screens =====
+function showScreen(el) {
+  [titleScreen, gameScreen, resultScreen].forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ===== Background stars =====
+function makeStars(container, count) {
+  container.innerHTML = '';
+  for (let i = 0; i < count; i++) {
+    const s = document.createElement('div');
+    s.className = 'bg-star';
+    s.style.left = Math.random() * 100 + '%';
+    s.style.top = Math.random() * 100 + '%';
+    s.style.animationDelay = (Math.random() * 2) + 's';
+    s.style.width = s.style.height = (2 + Math.random() * 3) + 'px';
+    container.appendChild(s);
+  }
+}
+makeStars(document.getElementById('title-stars'), 50);
+makeStars(document.getElementById('result-stars'), 50);
+
+// ===== Start game =====
+document.getElementById('start-btn').addEventListener('click', startGame);
+document.getElementById('retry-btn').addEventListener('click', startGame);
+
+function startGame() {
+  score = 0; combo = 0; maxCombo = 0; totalTaps = 0; goodTaps = 0; badTaps = 0; missedItems = 0;
+  timeLeft = GAME_DURATION; stage = 1; itemIdCounter = 0;
+  stageThresholds = [15, 35, 60, 100]; // score thresholds for stage advancement
+
+  playArea.innerHTML = '';
+  updateHUD();
+  showScreen(gameScreen);
+
+  showStageBanner('ステージ 1');
+
+  setTimeout(() => {
+    running = true;
+    startTimers();
+  }, 800);
+}
+
+function startTimers() {
+  // Countdown timer
+  gameTimer = setInterval(() => {
+    timeLeft -= 0.25;
+    if (timeLeft <= 0) {
+      timeLeft = 0;
+      endGame();
+    }
+    updateHUD();
+  }, 250);
+
+  // Spawn items
+  scheduleNextSpawn();
+
+  // Beat pulse
+  beatTimer = setInterval(beatPulse, BEAT_MS);
+}
+
+function scheduleNextSpawn() {
+  if (!running) return;
+  const elapsed = GAME_DURATION - timeLeft;
+  const progress = elapsed / GAME_DURATION;
+  const interval = Math.max(SPAWN_INTERVAL_MIN, SPAWN_INTERVAL_BASE - progress * 400);
+  // Add slight randomness to feel more natural
+  const jitter = (Math.random() - 0.5) * interval * 0.4;
+  spawnTimer = setTimeout(() => {
+    if (!running) return;
+    spawnItem();
+    scheduleNextSpawn();
+  }, interval + jitter);
+}
+
+function stopTimers() {
+  running = false;
+  clearInterval(gameTimer);
+  clearTimeout(spawnTimer);
+  clearInterval(beatTimer);
+}
+
+// ===== Update HUD =====
+function updateHUD() {
+  hudScore.textContent = score;
+  hudTime.textContent = Math.ceil(timeLeft);
+  timerBar.style.width = (timeLeft / GAME_DURATION * 100) + '%';
+
+  if (combo >= 3) {
+    hudCombo.textContent = combo + ' コンボ!';
+    hudCombo.style.color = combo >= 10 ? '#ffd93d' : combo >= 5 ? '#ff6b9d' : '#6bcfff';
+  } else {
+    hudCombo.textContent = '';
+  }
+}
+
+// ===== Stage management =====
+function checkStage() {
+  const newStage = stageThresholds.filter(t => score >= t).length + 1;
+  if (newStage > stage && newStage <= 5) {
+    stage = newStage;
+    showStageBanner('ステージ ' + stage);
+  }
+}
+
+function showStageBanner(text) {
+  stageBanner.textContent = text;
+  stageBanner.style.opacity = '1';
+  stageBanner.style.transition = 'none';
+  setTimeout(() => {
+    stageBanner.style.transition = 'opacity 0.8s';
+    stageBanner.style.opacity = '0';
+  }, 1200);
+}
+
+// ===== Beat pulse =====
+function beatPulse() {
+  const ring = beatRing;
+  ring.style.transition = 'none';
+  ring.style.width = '0px';
+  ring.style.height = '0px';
+  ring.style.opacity = '0.3';
+  requestAnimationFrame(() => {
+    ring.style.transition = `all ${BEAT_MS * 0.9}ms ease-out`;
+    ring.style.width = '300px';
+    ring.style.height = '300px';
+    ring.style.opacity = '0';
+  });
+}
+
+// ===== Spawn item =====
+function spawnItem() {
+  if (!running) return;
+
+  const elapsed = GAME_DURATION - timeLeft;
+  const progress = elapsed / GAME_DURATION;
+
+  // Decide item type
+  let itemDef;
+  const r = Math.random();
+  const badChance = 0.15 + progress * 0.3; // 15% -> 45%
+  const goldenChance = 0.06; // 6% of all spawns
+
+  if (r < goldenChance) {
+    itemDef = GOLDEN_HEART;
+  } else if (r < goldenChance + badChance) {
+    itemDef = BAD_ITEMS[Math.floor(Math.random() * BAD_ITEMS.length)];
+  } else {
+    // Weight hearts slightly more than stars
+    itemDef = Math.random() < 0.45 ? GOOD_ITEMS[0] : GOOD_ITEMS[1];
+  }
+
+  const areaW = playArea.clientWidth;
+  const areaH = playArea.clientHeight;
+  const size = Math.max(ITEM_SIZE_MIN, ITEM_SIZE_BASE - progress * 12);
+  const padding = 10;
+  const x = padding + Math.random() * (areaW - size - padding * 2);
+  const y = padding + Math.random() * (areaH - size - padding * 2);
+
+  const el = document.createElement('div');
+  el.className = 'item';
+  el.style.width = size + 'px';
+  el.style.height = size + 'px';
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  el.style.fontSize = (size * 0.55) + 'px';
+  el.style.background = `radial-gradient(circle at 35% 35%, ${itemDef.color}44, ${itemDef.color}22)`;
+  el.style.border = `2px solid ${itemDef.color}66`;
+  el.style.boxShadow = `0 0 16px ${itemDef.color}33`;
+  el.textContent = itemDef.emoji;
+
+  const id = itemIdCounter++;
+  el.dataset.id = id;
+  el.dataset.pts = itemDef.pts;
+  el.dataset.type = itemDef.type;
+  el.dataset.color = itemDef.color;
+
+  // Golden heart glow
+  if (itemDef.type === 'golden') {
+    el.style.boxShadow = `0 0 24px ${itemDef.color}88, 0 0 48px ${itemDef.color}44`;
+    el.style.border = `2px solid ${itemDef.color}`;
+  }
+
+  // Tap handler
+  const onTap = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    tapItem(el);
+  };
+  el.addEventListener('pointerdown', onTap);
+
+  playArea.appendChild(el);
+
+  // Auto-remove after lifetime
+  const lifetime = Math.max(ITEM_LIFETIME_MIN, ITEM_LIFETIME_BASE - progress * 1300);
+  const shrinkTime = 500;
+
+  setTimeout(() => {
+    if (!el.parentNode || el.dataset.tapped) return;
+    el.classList.add('shrinking');
+  }, lifetime - shrinkTime);
+
+  setTimeout(() => {
+    if (!el.parentNode || el.dataset.tapped) return;
+    // Missed a good item
+    const pts = parseInt(el.dataset.pts);
+    if (pts > 0) {
+      missedItems++;
+      combo = 0;
+      updateHUD();
+    }
+    el.remove();
+  }, lifetime);
+}
+
+// ===== Tap item =====
+function tapItem(el) {
+  if (el.dataset.tapped || !running) return;
+  el.dataset.tapped = '1';
+
+  const pts = parseInt(el.dataset.pts);
+  const color = el.dataset.color;
+  const type = el.dataset.type;
+  const rect = el.getBoundingClientRect();
+  const areaRect = playArea.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2 - areaRect.left;
+  const cy = rect.top + rect.height / 2 - areaRect.top;
+
+  totalTaps++;
+
+  if (pts > 0) {
+    // Good tap
+    goodTaps++;
+    const comboBonus = combo >= 10 ? 2 : combo >= 5 ? 1 : 0;
+    const totalPts = pts + comboBonus;
+    score += totalPts;
+    combo++;
+    if (combo > maxCombo) maxCombo = combo;
+
+    showScorePopup(cx, cy, '+' + totalPts, color);
+    spawnParticles(cx, cy, color, 8);
+    showTapBurst(cx, cy, color);
+
+    // Combo flash
+    if (combo >= 5) {
+      comboFlash.style.opacity = '0.6';
+      setTimeout(() => comboFlash.style.opacity = '0', 200);
+    }
+  } else {
+    // Bad tap
+    badTaps++;
+    score += pts;
+    combo = 0;
+
+    showScorePopup(cx, cy, pts.toString(), '#ff4444');
+    showTapBurst(cx, cy, '#ff4444');
+
+    // Screen shake
+    gameScreen.style.transform = 'translateX(4px)';
+    setTimeout(() => gameScreen.style.transform = 'translateX(-4px)', 50);
+    setTimeout(() => gameScreen.style.transform = '', 100);
+  }
+
+  if (score < 0) score = 0;
+  updateHUD();
+  checkStage();
+
+  // Remove item
+  el.style.transition = 'transform 0.15s, opacity 0.15s';
+  el.style.transform = 'scale(1.3)';
+  el.style.opacity = '0';
+  setTimeout(() => el.remove(), 150);
+}
+
+// ===== Visual effects =====
+function showScorePopup(x, y, text, color) {
+  const el = document.createElement('div');
+  el.className = 'score-popup';
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  el.style.color = color;
+  el.textContent = text;
+  playArea.appendChild(el);
+  setTimeout(() => el.remove(), 800);
+}
+
+function showTapBurst(x, y, color) {
+  const el = document.createElement('div');
+  el.className = 'tap-burst';
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  el.style.width = '60px';
+  el.style.height = '60px';
+  el.style.borderRadius = '50%';
+  el.style.border = `3px solid ${color}`;
+  playArea.appendChild(el);
+  setTimeout(() => el.remove(), 500);
+}
+
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.left = x + 'px';
+    p.style.top = y + 'px';
+    p.style.background = color;
+    p.style.opacity = '1';
+
+    const angle = (Math.PI * 2 / count) * i + Math.random() * 0.5;
+    const dist = 40 + Math.random() * 50;
+    const dx = Math.cos(angle) * dist;
+    const dy = Math.sin(angle) * dist;
+    const dur = 400 + Math.random() * 200;
+
+    p.style.transition = `all ${dur}ms ease-out`;
+    playArea.appendChild(p);
+
+    requestAnimationFrame(() => {
+      p.style.left = (x + dx) + 'px';
+      p.style.top = (y + dy) + 'px';
+      p.style.opacity = '0';
+      p.style.transform = 'scale(0.2)';
+    });
+
+    setTimeout(() => p.remove(), dur);
+  }
+}
+
+// ===== End game =====
+function endGame() {
+  stopTimers();
+
+  // Remove remaining items with animation
+  playArea.querySelectorAll('.item').forEach(el => {
+    el.style.transition = 'transform 0.3s, opacity 0.3s';
+    el.style.transform = 'scale(0)';
+    el.style.opacity = '0';
+    setTimeout(() => el.remove(), 300);
+  });
+
+  setTimeout(showResult, 1000);
+}
+
+function showResult() {
+  showScreen(resultScreen);
+
+  document.getElementById('result-score').textContent = score + '点';
+
+  const accuracy = totalTaps > 0 ? Math.round(goodTaps / totalTaps * 100) : 0;
+  document.getElementById('result-details').innerHTML =
+    `タップ回数: ${totalTaps}<br>` +
+    `成功: ${goodTaps} / 失敗: ${badTaps}<br>` +
+    `見逃し: ${missedItems}<br>` +
+    `最大コンボ: ${maxCombo}<br>` +
+    `正確率: ${accuracy}%`;
+
+  let rank, rankEmoji;
+  if (score >= 120) { rank = 'S'; rankEmoji = '👑'; }
+  else if (score >= 90) { rank = 'A'; rankEmoji = '🌟'; }
+  else if (score >= 60) { rank = 'B'; rankEmoji = '✨'; }
+  else if (score >= 35) { rank = 'C'; rankEmoji = '🎵'; }
+  else { rank = 'D'; rankEmoji = '🎶'; }
+
+  document.getElementById('result-rank').textContent = rankEmoji + ' ' + rank + 'ランク';
+}
+
+// ===== Prevent context menu on long press =====
+document.addEventListener('contextmenu', e => e.preventDefault());
+</script>
+</body>
+</html>

@@ -10,92 +10,85 @@ body {
   font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
   background: #f0ebe3;
   min-height: 100dvh;
-  padding: 2rem 1rem;
-}
-h1 {
-  text-align: center;
+  padding: 2rem 1rem 3rem;
   color: #3a3a3a;
-  font-size: 1.8rem;
-  margin-bottom: 2rem;
 }
+h1 { text-align: center; font-size: 1.9rem; margin-bottom: 0.3rem; }
+.lead { text-align: center; color: #8a8276; font-size: 0.9rem; margin-bottom: 1.6rem; }
+.legend { max-width: 820px; margin: 0 auto 1.4rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; font-size: 0.8rem; color: #6b6256; }
+.legend b { color: #c0392b; }
 .games {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 1.2rem;
-  max-width: 800px;
+  max-width: 820px;
   margin: 0 auto;
 }
 .game-card {
   background: white;
   border-radius: 1rem;
-  padding: 1.5rem;
-  text-decoration: none;
-  color: inherit;
+  padding: 1.3rem 1.3rem 1.1rem;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  transition: transform 0.15s, box-shadow 0.15s;
+  display: flex;
+  flex-direction: column;
 }
-.game-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+.game-card .icon { font-size: 2.4rem; margin-bottom: 0.4rem; }
+.game-card h2 { font-size: 1.15rem; margin-bottom: 0.25rem; }
+.game-card p { font-size: 0.85rem; color: #888; flex: 1; margin-bottom: 0.9rem; }
+.btns { display: flex; gap: 0.5rem; }
+.btn {
+  flex: 1; text-align: center; text-decoration: none;
+  border-radius: 0.7rem; padding: 0.55rem 0.4rem; font-size: 0.85rem; font-weight: 700;
+  transition: transform 0.12s, box-shadow 0.12s;
 }
-.game-card .icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
-.game-card h2 { font-size: 1.2rem; color: #3a3a3a; margin-bottom: 0.3rem; }
-.game-card p { font-size: 0.9rem; color: #888; }
+.btn:active { transform: scale(0.96); }
+.btn.deluxe { background: linear-gradient(135deg,#ffb74d,#fb8c00); color: #fff; box-shadow: 0 3px 8px rgba(251,140,0,0.35); }
+.btn.orig { background: #efe9df; color: #7a7060; }
+.badge {
+  display: inline-block; font-size: 0.65rem; font-weight: 800; color: #fff;
+  background: #e91e63; padding: 0.1rem 0.5rem; border-radius: 999px; vertical-align: middle; margin-left: 0.4rem;
+}
+.foot { text-align: center; color: #b5ac9e; font-size: 0.75rem; margin-top: 2rem; }
 </style>
 </head>
 <body>
 <h1>🎮 ゲーム一覧</h1>
-<div class="games">
-  <a class="game-card" href="games/cat-hide/">
-    <div class="icon">🐱</div>
-    <h2>にゃんこどこ？</h2>
-    <p>病院に行きたくないネコを探し出そう！</p>
-  </a>
-  <a class="game-card" href="games/maze-number/">
-    <div class="icon">🔢</div>
-    <h2>数字迷路</h2>
-    <p>迷路で数字を集めろ！大きい数に当たったらゲームオーバー</p>
-  </a>
-  <a class="game-card" href="games/bank-game/">
-    <div class="icon">🏦</div>
-    <h2>銀行ゲーム</h2>
-    <p>銀行を経営して資産を増やそう！</p>
-  </a>
-  <a class="game-card" href="games/catch-thief/">
-    <div class="icon">🦹</div>
-    <h2>泥棒をやっつけろ</h2>
-    <p>家に近づく泥棒をタップでやっつけろ！</p>
-  </a>
-  <a class="game-card" href="games/rhythm-tap/">
-    <div class="icon">❤️</div>
-    <h2>リズムタップ</h2>
-    <p>ハートと星をタップ！爆弾に注意！</p>
-  </a>
-  <a class="game-card" href="games/gem-hunt/">
-    <div class="icon">💎</div>
-    <h2>キラめき探検隊</h2>
-    <p>10人の仲間と宝石・星のかけらを集めよう！</p>
-  </a>
-  <a class="game-card" href="games/town-grow/">
-    <div class="icon">🏡</div>
-    <h2>まちづくり物語</h2>
-    <p>田舎の町を発展させて住民を増やそう！</p>
-  </a>
-  <a class="game-card" href="games/block-blast/">
-    <div class="icon">🧩</div>
-    <h2>ブロックブラスト</h2>
-    <p>ブロックを置いて列を消そう！コンボでハイスコア！</p>
-  </a>
-  <a class="game-card" href="games/pet-care/">
-    <div class="icon">🐾</div>
-    <h2>ペットそだて</h2>
-    <p>ねこ・いぬ・ハムスターを育てよう！ガチャもあるよ</p>
-  </a>
-  <a class="game-card" href="games/yagoto-walk/">
-    <div class="icon">🚶</div>
-    <h2>八事ウォーク</h2>
-    <p>八事日赤エリアを歩いてチェックポイントを集めよう！</p>
-  </a>
+<p class="lead">各ゲームは「デラックス版」と「オリジナル版（最初のバージョン）」から選べます</p>
+<div class="legend">
+  <div>🟧 <b>デラックス版</b>＝あそびごたえ＆演出を強化した版</div>
+  <div>⬜ オリジナル版＝最初に作った版を保存</div>
 </div>
+<div class="games" id="games"></div>
+<p class="foot">© k-yokoyama-2026 / すべて1ファイルのブラウザゲーム</p>
+
+<script>
+const GAMES = [
+  { dir: 'pet-care',    icon: '🐾', name: 'ペットそだて',     desc: 'ねこ・いぬ・ハムスターを育てよう！ガチャもあるよ', deluxe: true, fresh: true },
+  { dir: 'block-blast', icon: '🧩', name: 'ブロックブラスト', desc: 'ブロックを置いて列を消そう！連鎖でハイスコア！' },
+  { dir: 'yagoto-walk', icon: '🚶', name: '八事ウォーク',     desc: '八事日赤エリアを歩いてチェックポイントを集めよう！' },
+  { dir: 'cat-hide',    icon: '🐱', name: 'にゃんこどこ？',   desc: '病院に行きたくないネコを探し出そう！' },
+  { dir: 'maze-number', icon: '🔢', name: '数字迷路',         desc: '迷路で数字を集めろ！おに👹から逃げきろう' },
+  { dir: 'bank-game',   icon: '🏦', name: '銀行ゲーム',       desc: '金利を操って銀行を経営！取り付け騒ぎに注意' },
+  { dir: 'catch-thief', icon: '🦹', name: '泥棒をやっつけろ', desc: '家に近づく泥棒をタップ！5レベルごとにボス' },
+  { dir: 'rhythm-tap',  icon: '❤️', name: 'リズムタップ',     desc: 'ハートと星をタップ！フィーバーで高得点！' },
+  { dir: 'gem-hunt',    icon: '💎', name: 'キラめき探検隊',   desc: '宝石・星のかけらを集めて★3クリアを目指せ！' },
+  { dir: 'town-grow',   icon: '🏡', name: 'まちづくり物語',   desc: '最善の選択で連鎖ボーナス！町を発展させよう' },
+];
+
+const wrap = document.getElementById('games');
+GAMES.forEach(g => {
+  const card = document.createElement('div');
+  card.className = 'game-card';
+  card.innerHTML =
+    `<div class="icon">${g.icon}</div>` +
+    `<h2>${g.name}${g.fresh ? '<span class="badge">NEW</span>' : ''}</h2>` +
+    `<p>${g.desc}</p>` +
+    `<div class="btns">` +
+      `<a class="btn deluxe" href="games/${g.dir}/">デラックス版</a>` +
+      `<a class="btn orig" href="games/${g.dir}/v1/">オリジナル版</a>` +
+    `</div>`;
+  wrap.appendChild(card);
+});
+</script>
 </body>
 </html>

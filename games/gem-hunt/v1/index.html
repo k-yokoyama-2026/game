@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>キラめき探検隊</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; user-select:none; -webkit-tap-highlight-color:transparent; }
+html, body { overflow:hidden; height:100%; touch-action:none; }
+body {
+  font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+  background:#0d1024;
+  color:#fff;
+  width:100vw; height:100dvh;
+}
+#game {
+  position:relative;
+  width:100vw; height:100dvh;
+  background: radial-gradient(ellipse at center, #2a3060 0%, #0d1024 100%);
+  overflow:hidden;
+}
+canvas {
+  display:block;
+  position:absolute; top:0; left:0;
+  width:100%; height:100%;
+}
+.hud {
+  position:absolute;
+  z-index:10;
+  pointer-events:none;
+}
+#hudTop {
+  top:8px; left:8px; right:8px;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:6px;
+}
+.hud-box {
+  background:rgba(20,24,50,.78);
+  border:1px solid #6a76ff;
+  border-radius:10px;
+  padding:6px 10px;
+  font-size:13px;
+  pointer-events:auto;
+  backdrop-filter:blur(4px);
+}
+.score {
+  display:flex; gap:8px; flex-wrap:wrap;
+}
+.score span { white-space:nowrap; }
+#charBox { cursor:pointer; pointer-events:auto; font-size:14px; }
+#charBox span { margin-right:4px; }
+.crystals {
+  display:flex; gap:6px;
+  position:absolute;
+  top:64px; right:8px;
+  pointer-events:none;
+}
+.cbtn {
+  width:48px; height:48px;
+  border-radius:10px;
+  background:rgba(20,24,50,.78);
+  border:2px solid #6a76ff;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  font-size:22px;
+  cursor:pointer;
+  pointer-events:auto;
+  position:relative;
+  color:#fff;
+  backdrop-filter:blur(4px);
+}
+.cbtn.disabled { opacity:.3; }
+.cbtn .cost {
+  position:absolute;
+  bottom:-3px; right:-3px;
+  background:#ffaa3a;
+  color:#000;
+  font-size:9px;
+  padding:1px 4px;
+  border-radius:6px;
+  font-weight:bold;
+  border:1px solid #0d1024;
+}
+.charpicker {
+  position:absolute;
+  top:48px; left:8px;
+  background:rgba(20,24,50,.92);
+  border:1px solid #6a76ff;
+  border-radius:10px;
+  padding:6px;
+  display:none;
+  pointer-events:auto;
+  z-index:20;
+  max-width:220px;
+}
+.charpicker.open { display:flex; flex-wrap:wrap; gap:4px; }
+.citem {
+  width:38px; height:38px;
+  border-radius:8px;
+  background:rgba(50,60,120,.7);
+  display:flex; align-items:center; justify-content:center;
+  font-size:22px;
+  border:2px solid transparent;
+  cursor:pointer;
+}
+.citem.active { border-color:#ffd24a; }
+.joystick {
+  position:absolute;
+  bottom:24px; left:24px;
+  width:130px; height:130px;
+  border-radius:50%;
+  background:rgba(40,46,90,.45);
+  border:2px solid rgba(120,140,255,.5);
+  pointer-events:auto;
+  z-index:15;
+  touch-action:none;
+}
+.joystick .stick {
+  position:absolute;
+  width:54px; height:54px;
+  border-radius:50%;
+  background:rgba(180,190,255,.85);
+  top:38px; left:38px;
+  pointer-events:none;
+}
+#dialogue {
+  position:absolute;
+  bottom:28px; left:50%; transform:translateX(-50%);
+  background:rgba(20,24,50,.94);
+  border:2px solid #ffd24a;
+  border-radius:14px;
+  padding:10px 18px;
+  font-size:14px;
+  max-width:80%;
+  display:none;
+  z-index:25;
+  pointer-events:none;
+  text-align:center;
+}
+#dialogue.show { display:block; }
+#message {
+  position:absolute;
+  top:48%; left:50%; transform:translate(-50%,-50%);
+  background:rgba(20,24,50,.92);
+  border:2px solid #aaffaa;
+  border-radius:14px;
+  padding:14px 22px;
+  font-size:16px;
+  display:none;
+  z-index:30;
+  pointer-events:none;
+  text-align:center;
+}
+#message.show { display:block; }
+#endScreen {
+  position:absolute;
+  top:0; left:0; right:0; bottom:0;
+  background:rgba(10,12,30,.92);
+  display:none;
+  flex-direction:column;
+  align-items:center; justify-content:center;
+  z-index:40;
+  pointer-events:auto;
+  gap:14px;
+  text-align:center;
+  padding:20px;
+}
+#endScreen.show { display:flex; }
+#endScreen h1 { font-size:32px; }
+#endScreen p { font-size:15px; color:#bbb; }
+#endScreen button {
+  background:#6a76ff;
+  color:#fff;
+  border:none;
+  padding:12px 26px;
+  font-size:16px;
+  border-radius:10px;
+  cursor:pointer;
+}
+#tutorial {
+  position:absolute;
+  top:0; left:0; right:0; bottom:0;
+  background:rgba(10,12,30,.94);
+  display:flex;
+  flex-direction:column;
+  align-items:center; justify-content:center;
+  z-index:50;
+  pointer-events:auto;
+  text-align:center;
+  padding:20px;
+  gap:12px;
+}
+#tutorial.hide { display:none; }
+#tutorial h1 { font-size:24px; color:#ffd24a; }
+#tutorial p { font-size:14px; max-width:340px; line-height:1.6; }
+#tutorial button {
+  background:#6a76ff;
+  color:#fff;
+  border:none;
+  padding:12px 26px;
+  font-size:16px;
+  border-radius:10px;
+  cursor:pointer;
+  margin-top:8px;
+}
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="cv"></canvas>
+
+  <div class="hud" id="hudTop">
+    <div>
+      <div class="hud-box" id="charBox">
+        <span id="charEmoji">🦸‍♀️</span><span id="charName">ヒナ</span>
+      </div>
+      <div class="charpicker" id="charPicker"></div>
+    </div>
+    <div class="hud-box score">
+      <span>❤️<span id="hpVal">5</span></span>
+      <span>✨<span id="kiraVal">0</span>/16</span>
+      <span>💎⭐<span id="scoreVal">0</span>/10</span>
+    </div>
+  </div>
+
+  <div class="crystals" id="crystals"></div>
+
+  <div class="joystick" id="joystick">
+    <div class="stick" id="stick"></div>
+  </div>
+
+  <div id="dialogue"></div>
+  <div id="message"></div>
+
+  <div id="endScreen">
+    <h1 id="endTitle">クリア！</h1>
+    <p id="endText"></p>
+    <button onclick="location.reload()">もう一度</button>
+  </div>
+
+  <div id="tutorial">
+    <h1>キラめき探検隊</h1>
+    <p>💎宝石と⭐星のかけらを<b>10個</b>集めよう！</p>
+    <p>左下のスティックで移動。仲間に話しかけるとヒントをくれる。</p>
+    <p>マップにある✨キラを集めて、4種類の水晶👁️⚔️💥💖を発動できる！</p>
+    <p>左上の自分のアイコンをタップしてキャラ切り替え。</p>
+    <button onclick="document.getElementById('tutorial').classList.add('hide')">スタート</button>
+  </div>
+</div>
+
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+const characters = [
+  {emoji:'🦸‍♀️', name:'ヒナ'},
+  {emoji:'🧝‍♀️', name:'リン'},
+  {emoji:'🧙‍♂️', name:'ソラ'},
+  {emoji:'🧚‍♀️', name:'モモ'},
+  {emoji:'🥷', name:'シノ'},
+  {emoji:'🧜‍♀️', name:'ナギ'},
+  {emoji:'🦹‍♂️', name:'ライ'},
+  {emoji:'🧞', name:'ゲン'},
+  {emoji:'🧛‍♂️', name:'ヨル'},
+  {emoji:'👸', name:'メル'},
+];
+
+const WORLD_W = 1600;
+const WORLD_H = 1200;
+
+let canvasW = window.innerWidth;
+let canvasH = window.innerHeight;
+
+function resize(){
+  canvasW = window.innerWidth;
+  canvasH = window.innerHeight;
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = canvasW * dpr;
+  cv.height = canvasH * dpr;
+  cv.style.width = canvasW + 'px';
+  cv.style.height = canvasH + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const state = {
+  playerCharIdx: 0,
+  x: WORLD_W/2, y: WORLD_H/2,
+  hp: 5, maxHp: 5,
+  kira: 3,
+  crystals: {1:false, 2:false, 3:false, 4:false},
+  collected: 0,
+  gems: [], stars: [], rocks: [], monsters: [], kiras: [], crystalDrops: [], npcs: [],
+  effects: [],
+  reveal: 0,
+  detect: 0,
+  dialogueTime: 0,
+  invulnTime: 0,
+  win: false, lose: false,
+};
+
+function rand(a, b){ return a + Math.random()*(b-a); }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function dist(x1,y1,x2,y2){ return Math.hypot(x1-x2, y1-y2); }
+
+function genWorld(){
+  for (let i=0; i<14; i++){
+    state.gems.push({x:rand(80,WORLD_W-80), y:rand(80,WORLD_H-80), taken:false});
+  }
+  for (let i=0; i<10; i++){
+    state.stars.push({x:rand(80,WORLD_W-80), y:rand(80,WORLD_H-80), taken:false});
+  }
+  for (let i=0; i<12; i++){
+    state.rocks.push({
+      x:rand(100,WORLD_W-100), y:rand(100,WORLD_H-100),
+      broken:false,
+      contains: Math.random()<0.65 ? pick(['gem','star','kira','kira']) : null,
+    });
+  }
+  for (let i=0; i<5; i++){
+    state.monsters.push({
+      x:rand(250,WORLD_W-250), y:rand(250,WORLD_H-250),
+      vx:rand(-1,1)*0.6, vy:rand(-1,1)*0.6,
+      hp:2,
+    });
+  }
+  for (let i=0; i<10; i++){
+    state.kiras.push({x:rand(80,WORLD_W-80), y:rand(80,WORLD_H-80), taken:false});
+  }
+  for (let t=1; t<=4; t++){
+    state.crystalDrops.push({type:t, x:rand(150,WORLD_W-150), y:rand(150,WORLD_H-150), taken:false});
+  }
+  const otherIdx = [];
+  for (let i=0; i<10; i++) if (i!==state.playerCharIdx) otherIdx.push(i);
+  for (let i=0; i<9; i++){
+    const inv = [];
+    const cnt = Math.floor(rand(0, 2.5));
+    for (let j=0; j<cnt; j++) inv.push(pick(['gem','star']));
+    state.npcs.push({
+      charIdx: otherIdx[i],
+      x: rand(150,WORLD_W-150), y: rand(150,WORLD_H-150),
+      vx: rand(-1,1)*0.5, vy: rand(-1,1)*0.5,
+      inv,
+      hint: '',
+      gaveItem: false,
+      spoke: false,
+    });
+  }
+  // Hints
+  const dirOf = (px, py) => {
+    const dx = px - WORLD_W/2;
+    const dy = py - WORLD_H/2;
+    if (Math.abs(dy) > Math.abs(dx)) return dy < 0 ? '北' : '南';
+    return dx < 0 ? '西' : '東';
+  };
+  state.npcs.forEach(npc => {
+    const all = [...state.gems, ...state.stars];
+    const t = pick(all);
+    npc.hint = t ? `${dirOf(t.x, t.y)}の方に何か光ってたよ！` : 'がんばって！';
+  });
+}
+genWorld();
+
+// Input
+const keys = {};
+window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+// Joystick
+const joy = document.getElementById('joystick');
+const stick = document.getElementById('stick');
+let joyDx = 0, joyDy = 0;
+let joyId = null;
+const joyR = 54;
+
+function joyAt(t){
+  const r = joy.getBoundingClientRect();
+  let dx = t.clientX - r.left - r.width/2;
+  let dy = t.clientY - r.top - r.height/2;
+  const d = Math.hypot(dx,dy);
+  if (d > joyR) { dx = dx/d*joyR; dy = dy/d*joyR; }
+  stick.style.left = (38 + dx) + 'px';
+  stick.style.top = (38 + dy) + 'px';
+  joyDx = dx/joyR;
+  joyDy = dy/joyR;
+}
+function joyReset(){
+  joyDx = 0; joyDy = 0;
+  joyId = null;
+  stick.style.left = '38px';
+  stick.style.top = '38px';
+}
+joy.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (joyId !== null) return;
+  const t = e.changedTouches[0];
+  joyId = t.identifier;
+  joyAt(t);
+}, {passive:false});
+joy.addEventListener('touchmove', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches){
+    if (t.identifier === joyId) joyAt(t);
+  }
+}, {passive:false});
+function endTouch(e){
+  for (const t of e.changedTouches){
+    if (t.identifier === joyId) joyReset();
+  }
+}
+joy.addEventListener('touchend', endTouch);
+joy.addEventListener('touchcancel', endTouch);
+joy.addEventListener('mousedown', e => {
+  joyId = 'mouse';
+  joyAt(e);
+});
+window.addEventListener('mousemove', e => {
+  if (joyId === 'mouse') joyAt(e);
+});
+window.addEventListener('mouseup', () => {
+  if (joyId === 'mouse') joyReset();
+});
+
+// Char picker
+const charBox = document.getElementById('charBox');
+const charPicker = document.getElementById('charPicker');
+function refreshCharBox(){
+  document.getElementById('charEmoji').textContent = characters[state.playerCharIdx].emoji;
+  document.getElementById('charName').textContent = characters[state.playerCharIdx].name;
+}
+charBox.addEventListener('click', () => {
+  charPicker.classList.toggle('open');
+  if (charPicker.classList.contains('open')) buildCharPicker();
+});
+function buildCharPicker(){
+  charPicker.innerHTML = '';
+  characters.forEach((c, i) => {
+    const el = document.createElement('div');
+    el.className = 'citem' + (i===state.playerCharIdx?' active':'');
+    el.textContent = c.emoji;
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      switchChar(i);
+      charPicker.classList.remove('open');
+    });
+    charPicker.appendChild(el);
+  });
+}
+function switchChar(newIdx){
+  if (newIdx === state.playerCharIdx) return;
+  const npc = state.npcs.find(n => n.charIdx === newIdx);
+  if (!npc) return;
+  const ox = state.x, oy = state.y, oi = state.playerCharIdx;
+  state.x = npc.x; state.y = npc.y;
+  npc.x = ox; npc.y = oy;
+  npc.charIdx = oi;
+  state.playerCharIdx = newIdx;
+  refreshCharBox();
+}
+refreshCharBox();
+
+// Crystal buttons
+const crystalsDiv = document.getElementById('crystals');
+const crystalDefs = [
+  {id:1, emoji:'👁️', cost:1, name:'透視'},
+  {id:2, emoji:'⚔️', cost:1, name:'攻撃'},
+  {id:3, emoji:'💥', cost:2, name:'強化攻撃'},
+  {id:4, emoji:'💖', cost:3, name:'万能'},
+];
+crystalDefs.forEach(c => {
+  const b = document.createElement('div');
+  b.className = 'cbtn';
+  b.id = 'cb'+c.id;
+  b.innerHTML = `<div>${c.emoji}</div><div class="cost">${c.cost}</div>`;
+  b.addEventListener('click', () => useCrystal(c.id));
+  crystalsDiv.appendChild(b);
+});
+function refreshCrystals(){
+  crystalDefs.forEach(c => {
+    const b = document.getElementById('cb'+c.id);
+    const has = state.crystals[c.id];
+    const enough = state.kira >= c.cost;
+    b.classList.toggle('disabled', !has || !enough);
+  });
+}
+
+function useCrystal(id){
+  if (!state.crystals[id]) { showMessage('まだ持ってない'); return; }
+  const def = crystalDefs.find(c => c.id===id);
+  if (state.kira < def.cost) { showMessage('キラが足りない'); return; }
+  state.kira -= def.cost;
+  if (id === 1){
+    state.reveal = 6;
+    showMessage('👁️ 透視発動！');
+    playSound('detect');
+  } else if (id === 2){
+    let hit = false;
+    state.rocks.forEach(r => {
+      if (!r.broken && dist(state.x, state.y, r.x, r.y) < 80){
+        breakRock(r); hit = true;
+      }
+    });
+    state.monsters.forEach(m => {
+      if (m.hp > 0 && dist(state.x, state.y, m.x, m.y) < 80){
+        m.hp -= 2; hit = true;
+        if (m.hp <= 0) state.effects.push({x:m.x,y:m.y,t:0.5,kind:'pop'});
+      }
+    });
+    state.effects.push({x:state.x,y:state.y,t:0.3,kind:'slash',r:80});
+    playSound('slash');
+    if (!hit) showMessage('近くに何もなかった');
+  } else if (id === 3){
+    state.rocks.forEach(r => {
+      if (!r.broken && dist(state.x, state.y, r.x, r.y) < 140){
+        breakRock(r);
+      }
+    });
+    state.monsters.forEach(m => {
+      if (m.hp > 0 && dist(state.x, state.y, m.x, m.y) < 140){
+        m.hp -= 3;
+        if (m.hp <= 0) state.effects.push({x:m.x,y:m.y,t:0.5,kind:'pop'});
+      }
+    });
+    state.effects.push({x:state.x,y:state.y,t:0.5,kind:'boom',r:140});
+    state.detect = 5;
+    playSound('boom');
+    showMessage('💥 強化攻撃！周囲を検知中');
+  } else if (id === 4){
+    state.hp = state.maxHp;
+    state.monsters.forEach(m => {
+      if (m.hp > 0 && dist(state.x, state.y, m.x, m.y) < 200){
+        m.hp -= 5;
+        if (m.hp <= 0) state.effects.push({x:m.x,y:m.y,t:0.5,kind:'pop'});
+      }
+    });
+    state.effects.push({x:state.x,y:state.y,t:0.7,kind:'heal',r:200});
+    playSound('heal');
+    showMessage('💖 回復＆全体攻撃！');
+  }
+  refreshHud();
+}
+
+function breakRock(r){
+  r.broken = true;
+  state.effects.push({x:r.x,y:r.y,t:0.4,kind:'crack'});
+  if (r.contains === 'gem'){
+    state.gems.push({x:r.x,y:r.y,taken:false});
+  } else if (r.contains === 'star'){
+    state.stars.push({x:r.x,y:r.y,taken:false});
+  } else if (r.contains === 'kira'){
+    state.kiras.push({x:r.x,y:r.y,taken:false});
+  }
+}
+
+// Sound
+let audioCtx = null;
+function playSound(kind){
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const t = audioCtx.currentTime;
+    const make = (freq, dur, type='sine', vol=0.15) => {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.connect(g); g.connect(audioCtx.destination);
+      o.type = type;
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.01, t+dur);
+      o.start(t); o.stop(t+dur);
+      return o;
+    };
+    if (kind==='pickup'){
+      const o = make(660, 0.15);
+      o.frequency.exponentialRampToValueAtTime(1320, t+0.15);
+    } else if (kind==='slash'){
+      make(440, 0.15, 'square', 0.12);
+    } else if (kind==='boom'){
+      make(140, 0.4, 'sawtooth', 0.18);
+    } else if (kind==='hurt'){
+      make(220, 0.2, 'square', 0.15);
+    } else if (kind==='heal'){
+      make(523, 0.1);
+      setTimeout(()=>make(659, 0.1), 80);
+      setTimeout(()=>make(784, 0.15), 160);
+    } else if (kind==='detect'){
+      make(880, 0.08, 'sine', 0.08);
+    } else if (kind==='win'){
+      [523,659,784,1047].forEach((f,i)=>setTimeout(()=>make(f,0.18,'sine',0.15),i*120));
+    } else if (kind==='lose'){
+      make(330, 0.3, 'sawtooth', 0.15);
+      setTimeout(()=>make(220, 0.5, 'sawtooth', 0.15), 200);
+    }
+  } catch(e){}
+}
+
+// UI
+const dialogueDiv = document.getElementById('dialogue');
+const messageDiv = document.getElementById('message');
+function showDialogue(text, time=3){
+  state.dialogueTime = time;
+  dialogueDiv.textContent = text;
+  dialogueDiv.classList.add('show');
+}
+function showMessage(text, time=1.2){
+  messageDiv.textContent = text;
+  messageDiv.classList.add('show');
+  clearTimeout(showMessage._t);
+  showMessage._t = setTimeout(()=>messageDiv.classList.remove('show'), time*1000);
+}
+
+function refreshHud(){
+  document.getElementById('hpVal').textContent = state.hp;
+  document.getElementById('kiraVal').textContent = state.kira;
+  document.getElementById('scoreVal').textContent = state.collected;
+  refreshCrystals();
+}
+refreshHud();
+
+// Game loop
+let lastT = performance.now();
+function loop(now){
+  const dt = Math.min(0.05, (now - lastT)/1000);
+  lastT = now;
+  update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+
+const SPEED = 170;
+function update(dt){
+  if (state.win || state.lose) return;
+  let mx = 0, my = 0;
+  if (keys['arrowup']||keys['w']) my -= 1;
+  if (keys['arrowdown']||keys['s']) my += 1;
+  if (keys['arrowleft']||keys['a']) mx -= 1;
+  if (keys['arrowright']||keys['d']) mx += 1;
+  mx += joyDx; my += joyDy;
+  const m = Math.hypot(mx, my);
+  if (m > 1) { mx/=m; my/=m; }
+  state.x += mx * SPEED * dt;
+  state.y += my * SPEED * dt;
+  state.x = Math.max(20, Math.min(WORLD_W-20, state.x));
+  state.y = Math.max(20, Math.min(WORLD_H-20, state.y));
+
+  // Pickups
+  state.gems.forEach(g => {
+    if (!g.taken && dist(state.x, state.y, g.x, g.y) < 28){
+      g.taken = true; state.collected++;
+      playSound('pickup'); showMessage('💎 +1');
+      checkWin();
+    }
+  });
+  state.stars.forEach(s => {
+    if (!s.taken && dist(state.x, state.y, s.x, s.y) < 28){
+      s.taken = true; state.collected++;
+      playSound('pickup'); showMessage('⭐ +1');
+      checkWin();
+    }
+  });
+  state.kiras.forEach(k => {
+    if (!k.taken && dist(state.x, state.y, k.x, k.y) < 28){
+      if (state.kira < 16){
+        k.taken = true; state.kira++;
+        playSound('pickup'); showMessage('✨ キラ+1');
+        refreshHud();
+      }
+    }
+  });
+  state.crystalDrops.forEach(c => {
+    if (!c.taken && dist(state.x, state.y, c.x, c.y) < 30){
+      if (!state.crystals[c.type]){
+        c.taken = true;
+        state.crystals[c.type] = true;
+        const def = crystalDefs.find(d=>d.id===c.type);
+        playSound('pickup');
+        showMessage(`${def.emoji} ${def.name}水晶GET！`);
+        refreshHud();
+      }
+    }
+  });
+
+  // NPCs
+  state.npcs.forEach(n => {
+    n.x += n.vx;
+    n.y += n.vy;
+    if (n.x < 60 || n.x > WORLD_W-60) n.vx *= -1;
+    if (n.y < 60 || n.y > WORLD_H-60) n.vy *= -1;
+    if (Math.random() < 0.005){
+      n.vx = rand(-1,1)*0.5;
+      n.vy = rand(-1,1)*0.5;
+    }
+    const d = dist(state.x, state.y, n.x, n.y);
+    if (d < 50 && !n.spoke){
+      n.spoke = true;
+      let msg = `${characters[n.charIdx].name}「${n.hint}」`;
+      if (n.inv.length > 0 && !n.gaveItem && Math.random() < 0.7){
+        const item = n.inv.shift();
+        if (item === 'gem'){ state.collected++; msg += ' 💎をくれた！'; }
+        else { state.collected++; msg += ' ⭐をくれた！'; }
+        n.gaveItem = true;
+        playSound('pickup');
+        checkWin();
+      }
+      showDialogue(msg, 3);
+      refreshHud();
+    } else if (d > 110){
+      n.spoke = false;
+    }
+  });
+
+  // Monsters
+  state.monsters.forEach(m => {
+    if (m.hp <= 0) return;
+    const d = dist(state.x, state.y, m.x, m.y);
+    if (d < 240){
+      const dx = state.x - m.x;
+      const dy = state.y - m.y;
+      m.x += (dx/d) * 55 * dt;
+      m.y += (dy/d) * 55 * dt;
+    } else {
+      m.x += m.vx;
+      m.y += m.vy;
+      if (m.x < 60 || m.x > WORLD_W-60) m.vx *= -1;
+      if (m.y < 60 || m.y > WORLD_H-60) m.vy *= -1;
+    }
+    if (d < 30 && state.invulnTime <= 0){
+      state.hp--;
+      state.invulnTime = 1.4;
+      playSound('hurt');
+      if (state.hp <= 0){
+        state.lose = true;
+        playSound('lose');
+        showEnd(false);
+      }
+      refreshHud();
+    }
+  });
+
+  if (state.invulnTime > 0) state.invulnTime -= dt;
+  if (state.reveal > 0) state.reveal -= dt;
+  if (state.detect > 0){
+    const before = Math.floor(state.detect*3);
+    state.detect -= dt;
+    const after = Math.floor(state.detect*3);
+    if (before !== after) playSound('detect');
+  }
+  if (state.dialogueTime > 0){
+    state.dialogueTime -= dt;
+    if (state.dialogueTime <= 0) dialogueDiv.classList.remove('show');
+  }
+  state.effects = state.effects.filter(e => { e.t -= dt; return e.t > 0; });
+}
+
+function checkWin(){
+  refreshHud();
+  if (state.collected >= 10){
+    state.win = true;
+    playSound('win');
+    showEnd(true);
+  }
+}
+
+function showEnd(won){
+  const es = document.getElementById('endScreen');
+  document.getElementById('endTitle').textContent = won ? '🎉 クリア！' : '😵 やられた...';
+  document.getElementById('endText').textContent = won
+    ? `${state.collected}個の宝石・星のかけらを集めた！`
+    : `集めた数: ${state.collected}個`;
+  es.classList.add('show');
+}
+
+function render(){
+  ctx.fillStyle = '#1a1f3a';
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  let camX = state.x - canvasW/2;
+  let camY = state.y - canvasH/2;
+  camX = Math.max(0, Math.min(WORLD_W - canvasW, camX));
+  camY = Math.max(0, Math.min(WORLD_H - canvasH, camY));
+  if (canvasW > WORLD_W) camX = (WORLD_W - canvasW)/2;
+  if (canvasH > WORLD_H) camY = (WORLD_H - canvasH)/2;
+
+  ctx.save();
+  ctx.translate(-camX, -camY);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(80,90,150,0.25)';
+  ctx.lineWidth = 1;
+  for (let x=0; x<=WORLD_W; x+=80){
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_H); ctx.stroke();
+  }
+  for (let y=0; y<=WORLD_H; y+=80){
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_W, y); ctx.stroke();
+  }
+  // Border
+  ctx.strokeStyle = '#4a5390';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(0, 0, WORLD_W, WORLD_H);
+
+  // Detect halos
+  if (state.detect > 0){
+    const pulse = 0.4 + 0.4*Math.sin(performance.now()/180);
+    [...state.gems, ...state.stars].forEach(it => {
+      if (it.taken) return;
+      if (dist(state.x, state.y, it.x, it.y) < 320){
+        ctx.beginPath();
+        ctx.arc(it.x, it.y, 22, 0, Math.PI*2);
+        ctx.strokeStyle = `rgba(255,220,120,${pulse})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    });
+  }
+
+  ctx.font = '32px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Rocks
+  state.rocks.forEach(r => {
+    if (r.broken) return;
+    ctx.fillText('🪨', r.x, r.y);
+  });
+
+  // Items
+  ctx.font = '24px serif';
+  state.gems.forEach(g => { if (!g.taken) ctx.fillText('💎', g.x, g.y); });
+  state.stars.forEach(s => { if (!s.taken) ctx.fillText('⭐', s.x, s.y); });
+  ctx.font = '20px serif';
+  state.kiras.forEach(k => { if (!k.taken) ctx.fillText('✨', k.x, k.y); });
+
+  // Crystal drops
+  state.crystalDrops.forEach(c => {
+    if (c.taken) return;
+    const def = crystalDefs.find(d=>d.id===c.type);
+    const grd = ctx.createRadialGradient(c.x,c.y,2,c.x,c.y,32);
+    grd.addColorStop(0, 'rgba(180,200,255,0.55)');
+    grd.addColorStop(1, 'rgba(180,200,255,0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(c.x,c.y,32,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = '28px serif';
+    ctx.fillText(def.emoji, c.x, c.y);
+  });
+
+  // NPCs
+  state.npcs.forEach(n => {
+    ctx.font = '32px serif';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(characters[n.charIdx].emoji, n.x, n.y);
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 3;
+    ctx.strokeText(characters[n.charIdx].name, n.x, n.y - 26);
+    ctx.fillText(characters[n.charIdx].name, n.x, n.y - 26);
+    if (state.reveal > 0 && n.inv.length > 0){
+      ctx.font = '16px serif';
+      const txt = n.inv.map(i => i==='gem'?'💎':'⭐').join('');
+      ctx.fillText(txt, n.x, n.y - 42);
+    }
+  });
+
+  // Monsters
+  ctx.font = '32px serif';
+  state.monsters.forEach(m => {
+    if (m.hp <= 0) return;
+    ctx.fillText('👹', m.x, m.y);
+  });
+
+  // Effects
+  state.effects.forEach(e => {
+    ctx.save();
+    if (e.kind === 'slash'){
+      ctx.strokeStyle = `rgba(255,100,100,${Math.min(1,e.t*3)})`;
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.r * (1-e.t/0.3), 0, Math.PI*2);
+      ctx.stroke();
+    } else if (e.kind === 'boom'){
+      ctx.strokeStyle = `rgba(255,180,40,${Math.min(1,e.t*2)})`;
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.r * (1-e.t/0.5), 0, Math.PI*2);
+      ctx.stroke();
+    } else if (e.kind === 'heal'){
+      ctx.strokeStyle = `rgba(255,150,200,${Math.min(1,e.t*1.5)})`;
+      ctx.lineWidth = 9;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.r * (1-e.t/0.7), 0, Math.PI*2);
+      ctx.stroke();
+    } else if (e.kind === 'crack'){
+      ctx.font = '36px serif';
+      ctx.globalAlpha = Math.min(1, e.t * 2.5);
+      ctx.fillStyle = '#fff';
+      ctx.fillText('💥', e.x, e.y);
+    } else if (e.kind === 'pop'){
+      ctx.font = '26px serif';
+      ctx.globalAlpha = Math.min(1, e.t * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fillText('💀', e.x, e.y);
+    }
+    ctx.restore();
+  });
+
+  // Player
+  if (state.invulnTime <= 0 || Math.floor(performance.now()/100) % 2){
+    ctx.font = '38px serif';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(characters[state.playerCharIdx].emoji, state.x, state.y);
+    // small marker ring
+    ctx.beginPath();
+    ctx.arc(state.x, state.y + 22, 4, 0, Math.PI*2);
+    ctx.fillStyle = '#ffd24a';
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>数字迷路</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+  background: #1a1a2e;
+  color: #eee;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+canvas { display: block; }
+#ui {
+  position: absolute; top: 0; left: 0; right: 0;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 16px;
+  background: rgba(0,0,0,0.5);
+  font-size: 18px; font-weight: bold;
+  z-index: 10;
+  pointer-events: none;
+}
+#ui .level { color: #f0c040; }
+#ui .number { color: #40f080; font-size: 22px; }
+#overlay {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: rgba(10,10,30,0.92);
+  z-index: 20;
+  text-align: center;
+  padding: 20px;
+}
+#overlay.hidden { display: none; }
+#overlay h1 { font-size: 42px; margin-bottom: 12px; }
+#overlay h2 { font-size: 28px; margin-bottom: 8px; }
+#overlay p { font-size: 18px; margin-bottom: 20px; color: #aaa; line-height: 1.6; }
+#overlay button {
+  font-size: 22px; padding: 14px 48px;
+  border: none; border-radius: 12px;
+  cursor: pointer; font-weight: bold;
+  margin: 8px;
+  transition: transform 0.1s;
+}
+#overlay button:active { transform: scale(0.95); }
+.btn-start { background: #f0c040; color: #1a1a2e; }
+.btn-retry { background: #e04060; color: #fff; }
+.btn-next  { background: #40c0f0; color: #1a1a2e; }
+.btn-title { background: #666; color: #fff; font-size: 16px !important; padding: 10px 30px !important; }
+.subtitle { color: #f0c040; font-size: 16px; margin-bottom: 20px; }
+.score-display { color: #40f080; font-size: 24px; margin-bottom: 16px; }
+#dpad {
+  position: absolute; bottom: 20px; right: 20px;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: 56px 56px 56px;
+  grid-template-rows: 56px 56px 56px;
+  gap: 4px;
+  opacity: 0.5;
+}
+#dpad button {
+  width: 56px; height: 56px;
+  border: 2px solid rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.1);
+  color: #fff; font-size: 24px;
+  border-radius: 10px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+#dpad button:active { background: rgba(255,255,255,0.3); }
+.dp-up    { grid-column: 2; grid-row: 1; }
+.dp-left  { grid-column: 1; grid-row: 2; }
+.dp-right { grid-column: 3; grid-row: 2; }
+.dp-down  { grid-column: 2; grid-row: 3; }
+@media (min-width: 800px) {
+  #dpad { opacity: 0.3; }
+}
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <span class="level" id="levelDisp">レベル 1</span>
+  <span class="number" id="numberDisp">自分: 2</span>
+</div>
+
+<canvas id="game"></canvas>
+
+<div id="dpad" class="hidden">
+  <button class="dp-up" ontouchstart="movePlayer(0,-1);event.preventDefault()" onclick="movePlayer(0,-1)">&#9650;</button>
+  <button class="dp-left" ontouchstart="movePlayer(-1,0);event.preventDefault()" onclick="movePlayer(-1,0)">&#9664;</button>
+  <button class="dp-right" ontouchstart="movePlayer(1,0);event.preventDefault()" onclick="movePlayer(1,0)">&#9654;</button>
+  <button class="dp-down" ontouchstart="movePlayer(0,1);event.preventDefault()" onclick="movePlayer(0,1)">&#9660;</button>
+</div>
+
+<div id="overlay">
+  <h1 style="color:#f0c040">数字迷路</h1>
+  <p class="subtitle">迷路を進んで数字を集めよう!</p>
+  <p>自分の数字は <b style="color:#40f080">2</b> からスタート<br>
+  自分より<b style="color:#40f080">小さい数字</b>を取ると、その分パワーアップ!<br>
+  自分より<b style="color:#e04060">大きい数字</b>に当たるとゲームオーバー<br><br>
+  全25レベルをクリアしよう!</p>
+  <button class="btn-start" onclick="startGame()">スタート</button>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const levelDisp = document.getElementById('levelDisp');
+const numberDisp = document.getElementById('numberDisp');
+const dpad = document.getElementById('dpad');
+
+let maze, player, numbers, level, playerNum, goalPos;
+let cols, rows, cellSize;
+let gameState = 'title'; // title, playing, gameover, clear, allclear
+let animFrame;
+let cameraX = 0, cameraY = 0;
+let numbersCollected = 0;
+let totalNumbers = 0;
+
+const WALL = 1;
+const PATH = 0;
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function getLevelConfig(lv) {
+  const baseCols = 7 + Math.floor(lv * 1.4);
+  const baseRows = 7 + Math.floor(lv * 1.2);
+  const c = Math.min(baseCols, 45);
+  const r = Math.min(baseRows, 37);
+  // ensure odd dimensions for maze gen
+  const mc = c % 2 === 0 ? c + 1 : c;
+  const mr = r % 2 === 0 ? r + 1 : r;
+  const numCount = 3 + Math.floor(lv * 1.5);
+  const maxNum = Math.min(2 + lv * 3, 80);
+  return { cols: mc, rows: mr, numCount, maxNum };
+}
+
+function generateMaze(c, r) {
+  const grid = [];
+  for (let y = 0; y < r; y++) {
+    grid[y] = [];
+    for (let x = 0; x < c; x++) {
+      grid[y][x] = WALL;
+    }
+  }
+
+  // Recursive backtracker
+  const stack = [];
+  const sx = 1, sy = 1;
+  grid[sy][sx] = PATH;
+  stack.push([sx, sy]);
+
+  const dirs = [[0,-2],[0,2],[-2,0],[2,0]];
+
+  while (stack.length > 0) {
+    const [cx, cy] = stack[stack.length - 1];
+    const shuffled = dirs.slice().sort(() => Math.random() - 0.5);
+    let found = false;
+    for (const [dx, dy] of shuffled) {
+      const nx = cx + dx, ny = cy + dy;
+      if (nx > 0 && nx < c - 1 && ny > 0 && ny < r - 1 && grid[ny][nx] === WALL) {
+        grid[cy + dy / 2][cx + dx / 2] = PATH;
+        grid[ny][nx] = PATH;
+        stack.push([nx, ny]);
+        found = true;
+        break;
+      }
+    }
+    if (!found) stack.pop();
+  }
+
+  // Open a few extra passages for larger mazes to make them less tedious
+  if (c > 15 || r > 15) {
+    const extra = Math.floor((c * r) / 40);
+    for (let i = 0; i < extra; i++) {
+      const wx = 1 + Math.floor(Math.random() * (c - 2));
+      const wy = 1 + Math.floor(Math.random() * (r - 2));
+      if (grid[wy][wx] === WALL) {
+        // check neighbors: open only if it connects two paths
+        let pathNeighbors = 0;
+        if (wy > 0 && grid[wy-1][wx] === PATH) pathNeighbors++;
+        if (wy < r-1 && grid[wy+1][wx] === PATH) pathNeighbors++;
+        if (wx > 0 && grid[wy][wx-1] === PATH) pathNeighbors++;
+        if (wx < c-1 && grid[wy][wx+1] === PATH) pathNeighbors++;
+        if (pathNeighbors >= 2) grid[wy][wx] = PATH;
+      }
+    }
+  }
+
+  return grid;
+}
+
+function getPathCells() {
+  const cells = [];
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      if (maze[y][x] === PATH) cells.push([x, y]);
+    }
+  }
+  return cells;
+}
+
+function dist(a, b) {
+  return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+}
+
+function initLevel(lv) {
+  const cfg = getLevelConfig(lv);
+  cols = cfg.cols;
+  rows = cfg.rows;
+  maze = generateMaze(cols, rows);
+
+  // Calculate cell size to fit screen reasonably
+  const maxCellW = Math.floor((canvas.width - 20) / Math.min(cols, 15));
+  const maxCellH = Math.floor((canvas.height - 60) / Math.min(rows, 12));
+  cellSize = Math.max(20, Math.min(maxCellW, maxCellH, 48));
+
+  const pathCells = getPathCells();
+  // Player starts top-left area
+  player = [1, 1];
+
+  // Goal at far corner
+  goalPos = [cols - 2, rows - 2];
+  if (maze[goalPos[1]][goalPos[0]] === WALL) {
+    // find nearest path cell to bottom-right
+    let best = pathCells[0];
+    let bestD = 0;
+    for (const c of pathCells) {
+      const d = dist(c, [cols-1, rows-1]);
+      if (d < dist(best, [cols-1, rows-1])) best = c;
+    }
+    // Actually find farthest from player
+    for (const c of pathCells) {
+      const d = dist(c, player);
+      if (d > bestD) { bestD = d; best = c; }
+    }
+    goalPos = best;
+  }
+
+  // Place numbers
+  numbers = [];
+  const available = pathCells.filter(c =>
+    !(c[0] === player[0] && c[1] === player[1]) &&
+    !(c[0] === goalPos[0] && c[1] === goalPos[1]) &&
+    dist(c, player) > 3
+  );
+  available.sort(() => Math.random() - 0.5);
+
+  const count = Math.min(cfg.numCount, available.length);
+  totalNumbers = count;
+  numbersCollected = 0;
+
+  for (let i = 0; i < count; i++) {
+    const pos = available[i];
+    // Mix of small (collectible) and large (dangerous) numbers
+    let val;
+    if (Math.random() < 0.5) {
+      // Small number (1 to playerNum-1 at start, so 1)
+      val = Math.max(1, Math.floor(Math.random() * Math.min(playerNum, cfg.maxNum * 0.4)) + 1);
+    } else {
+      // Could be anything from 1 to maxNum
+      val = Math.floor(Math.random() * cfg.maxNum) + 1;
+    }
+    numbers.push({ x: pos[0], y: pos[1], val, alive: true });
+  }
+}
+
+function startGame() {
+  level = 1;
+  playerNum = 2;
+  gameState = 'playing';
+  overlay.classList.add('hidden');
+  dpad.classList.remove('hidden');
+  initLevel(level);
+  updateUI();
+  draw();
+}
+
+function nextLevel() {
+  level++;
+  if (level > 25) {
+    showAllClear();
+    return;
+  }
+  gameState = 'playing';
+  overlay.classList.add('hidden');
+  initLevel(level);
+  updateUI();
+  draw();
+}
+
+function updateUI() {
+  levelDisp.textContent = `レベル ${level} / 25`;
+  numberDisp.textContent = `自分: ${playerNum}`;
+}
+
+function movePlayer(dx, dy) {
+  if (gameState !== 'playing') return;
+  const nx = player[0] + dx;
+  const ny = player[1] + dy;
+  if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) return;
+  if (maze[ny][nx] === WALL) return;
+
+  player = [nx, ny];
+
+  // Check number collision
+  for (const n of numbers) {
+    if (!n.alive) continue;
+    if (n.x === nx && n.y === ny) {
+      if (n.val >= playerNum) {
+        // Game over
+        gameState = 'gameover';
+        showGameOver(n.val);
+        return;
+      } else {
+        playerNum += n.val;
+        n.alive = false;
+        numbersCollected++;
+        updateUI();
+      }
+    }
+  }
+
+  // Check goal
+  if (nx === goalPos[0] && ny === goalPos[1]) {
+    gameState = 'clear';
+    showLevelClear();
+    return;
+  }
+
+  draw();
+}
+
+function showGameOver(hitNum) {
+  dpad.classList.add('hidden');
+  overlay.classList.remove('hidden');
+  overlay.innerHTML = `
+    <h1 style="color:#e04060">ゲームオーバー</h1>
+    <p>数字 <b style="color:#e04060;font-size:32px">${hitNum}</b> にぶつかった!</p>
+    <p class="score-display">自分の数字: ${playerNum}<br>到達レベル: ${level}</p>
+    <button class="btn-retry" onclick="startGame()">リトライ</button>
+    <br>
+    <button class="btn-title" onclick="showTitle()">タイトルへ</button>
+  `;
+}
+
+function showLevelClear() {
+  dpad.classList.add('hidden');
+  overlay.classList.remove('hidden');
+  overlay.innerHTML = `
+    <h2 style="color:#40c0f0">レベル ${level} クリア!</h2>
+    <p class="score-display">現在の数字: <b style="font-size:36px">${playerNum}</b></p>
+    <p>集めた数字: ${numbersCollected} / ${totalNumbers}</p>
+    <button class="btn-next" onclick="nextLevel()">次のレベルへ</button>
+  `;
+}
+
+function showAllClear() {
+  dpad.classList.add('hidden');
+  overlay.classList.remove('hidden');
+  overlay.innerHTML = `
+    <h1 style="color:#f0c040">全レベルクリア!</h1>
+    <h2 style="color:#40f080">おめでとう!</h2>
+    <p class="score-display">最終数字: <b style="font-size:44px">${playerNum}</b></p>
+    <p>素晴らしい!全25レベルを制覇しました!</p>
+    <button class="btn-start" onclick="startGame()">もう一度遊ぶ</button>
+    <br>
+    <button class="btn-title" onclick="showTitle()">タイトルへ</button>
+  `;
+}
+
+function showTitle() {
+  gameState = 'title';
+  dpad.classList.add('hidden');
+  overlay.classList.remove('hidden');
+  overlay.innerHTML = `
+    <h1 style="color:#f0c040">数字迷路</h1>
+    <p class="subtitle">迷路を進んで数字を集めよう!</p>
+    <p>自分の数字は <b style="color:#40f080">2</b> からスタート<br>
+    自分より<b style="color:#40f080">小さい数字</b>を取ると、その分パワーアップ!<br>
+    自分より<b style="color:#e04060">大きい数字</b>に当たるとゲームオーバー<br><br>
+    全25レベルをクリアしよう!</p>
+    <button class="btn-start" onclick="startGame()">スタート</button>
+  `;
+}
+
+// Colors
+const COLORS = {
+  wall: '#16213e',
+  wallStroke: '#0f3460',
+  path: '#e8e8e8',
+  player: '#f0c040',
+  playerStroke: '#c09020',
+  goal: '#40f080',
+  numSafe: '#2090f0',
+  numDanger: '#e04060',
+  numText: '#fff',
+};
+
+function draw() {
+  if (gameState !== 'playing') return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0a1e';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Camera: center on player
+  const mazeW = cols * cellSize;
+  const mazeH = rows * cellSize;
+  const targetCX = player[0] * cellSize + cellSize / 2 - canvas.width / 2;
+  const targetCY = player[1] * cellSize + cellSize / 2 - canvas.height / 2 + 20;
+
+  // Clamp camera
+  cameraX = Math.max(0, Math.min(targetCX, mazeW - canvas.width));
+  cameraY = Math.max(0, Math.min(targetCY, mazeH - canvas.height));
+  if (mazeW < canvas.width) cameraX = -(canvas.width - mazeW) / 2;
+  if (mazeH < canvas.height) cameraY = -(canvas.height - mazeH) / 2 + 20;
+
+  ctx.save();
+  ctx.translate(-cameraX, -cameraY);
+
+  // Draw maze
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const px = x * cellSize;
+      const py = y * cellSize;
+      if (maze[y][x] === WALL) {
+        ctx.fillStyle = COLORS.wall;
+        ctx.fillRect(px, py, cellSize, cellSize);
+        ctx.strokeStyle = COLORS.wallStroke;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px + 0.5, py + 0.5, cellSize - 1, cellSize - 1);
+      } else {
+        ctx.fillStyle = COLORS.path;
+        ctx.fillRect(px, py, cellSize, cellSize);
+      }
+    }
+  }
+
+  // Draw goal
+  const gx = goalPos[0] * cellSize;
+  const gy = goalPos[1] * cellSize;
+  const pulse = 0.7 + 0.3 * Math.sin(Date.now() / 300);
+  ctx.fillStyle = `rgba(64, 240, 128, ${pulse})`;
+  ctx.fillRect(gx + 2, gy + 2, cellSize - 4, cellSize - 4);
+  ctx.strokeStyle = '#20a060';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(gx + 2, gy + 2, cellSize - 4, cellSize - 4);
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${Math.floor(cellSize * 0.4)}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('出口', gx + cellSize / 2, gy + cellSize / 2);
+
+  // Draw numbers
+  for (const n of numbers) {
+    if (!n.alive) continue;
+    const nx = n.x * cellSize;
+    const ny = n.y * cellSize;
+    const safe = n.val < playerNum;
+    const r = cellSize * 0.4;
+
+    ctx.beginPath();
+    ctx.arc(nx + cellSize / 2, ny + cellSize / 2, r, 0, Math.PI * 2);
+    ctx.fillStyle = safe ? COLORS.numSafe : COLORS.numDanger;
+    ctx.fill();
+    ctx.strokeStyle = safe ? '#1060a0' : '#a02040';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = COLORS.numText;
+    ctx.font = `bold ${Math.floor(cellSize * 0.38)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(n.val, nx + cellSize / 2, ny + cellSize / 2);
+  }
+
+  // Draw player
+  const ppx = player[0] * cellSize;
+  const ppy = player[1] * cellSize;
+  const pr = cellSize * 0.42;
+
+  ctx.beginPath();
+  ctx.arc(ppx + cellSize / 2, ppy + cellSize / 2, pr, 0, Math.PI * 2);
+  ctx.fillStyle = COLORS.player;
+  ctx.fill();
+  ctx.strokeStyle = COLORS.playerStroke;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.fillStyle = '#1a1a2e';
+  ctx.font = `bold ${Math.floor(cellSize * 0.4)}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(playerNum, ppx + cellSize / 2, ppy + cellSize / 2);
+
+  ctx.restore();
+
+  // Animate
+  animFrame = requestAnimationFrame(draw);
+}
+
+// Keyboard controls
+document.addEventListener('keydown', e => {
+  if (gameState !== 'playing') return;
+  switch (e.key) {
+    case 'ArrowUp': case 'w': case 'W': movePlayer(0, -1); e.preventDefault(); break;
+    case 'ArrowDown': case 's': case 'S': movePlayer(0, 1); e.preventDefault(); break;
+    case 'ArrowLeft': case 'a': case 'A': movePlayer(-1, 0); e.preventDefault(); break;
+    case 'ArrowRight': case 'd': case 'D': movePlayer(1, 0); e.preventDefault(); break;
+  }
+});
+
+// Swipe controls
+let touchStartX, touchStartY, touching = false;
+const SWIPE_THRESHOLD = 20;
+
+document.addEventListener('touchstart', e => {
+  if (gameState !== 'playing') return;
+  const t = e.touches[0];
+  // Ignore touches on dpad area
+  if (e.target.closest('#dpad')) return;
+  touchStartX = t.clientX;
+  touchStartY = t.clientY;
+  touching = true;
+}, { passive: true });
+
+document.addEventListener('touchmove', e => {
+  if (!touching || gameState !== 'playing') return;
+  if (e.target.closest('#dpad')) return;
+  const t = e.touches[0];
+  const dx = t.clientX - touchStartX;
+  const dy = t.clientY - touchStartY;
+  const adx = Math.abs(dx), ady = Math.abs(dy);
+
+  if (adx > SWIPE_THRESHOLD || ady > SWIPE_THRESHOLD) {
+    if (adx > ady) {
+      movePlayer(dx > 0 ? 1 : -1, 0);
+    } else {
+      movePlayer(0, dy > 0 ? 1 : -1);
+    }
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+  }
+}, { passive: true });
+
+document.addEventListener('touchend', () => { touching = false; }, { passive: true });
+
+// Start animation loop for title
+function titleLoop() {
+  if (gameState === 'playing') return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0a1e';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Decorative floating numbers
+  const t = Date.now() / 1000;
+  ctx.globalAlpha = 0.15;
+  ctx.font = 'bold 48px sans-serif';
+  ctx.textAlign = 'center';
+  for (let i = 0; i < 15; i++) {
+    const x = (Math.sin(t * 0.3 + i * 2.1) * 0.5 + 0.5) * canvas.width;
+    const y = (Math.cos(t * 0.2 + i * 1.7) * 0.5 + 0.5) * canvas.height;
+    ctx.fillStyle = ['#f0c040','#40f080','#e04060','#40c0f0'][i % 4];
+    ctx.fillText(Math.floor(Math.random() * 20) + 1, x, y);
+  }
+  ctx.globalAlpha = 1;
+  requestAnimationFrame(titleLoop);
+}
+titleLoop();
+</script>
+</body>
+</html>
