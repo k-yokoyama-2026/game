@@ -108,8 +108,8 @@ canvas { display: block; }
   <h1 style="color:#f0c040">数字迷路</h1>
   <p class="subtitle">迷路を進んで数字を集めよう!</p>
   <p>自分の数字は <b style="color:#40f080">2</b> からスタート<br>
-  自分より<b style="color:#40f080">小さい数字</b>を取ると、その分パワーアップ!<br>
-  自分より<b style="color:#e04060">大きい数字</b>に当たるとゲームオーバー<br>
+  自分より<b style="color:#40f080">小さい数字（●まる）</b>を取ると、その分パワーアップ!<br>
+  自分より<b style="color:#e04060">大きい数字（◆ひしがた）</b>に当たるとゲームオーバー<br>
   レベル3から <b style="color:#e04060">おに👹</b> が追いかけてくる！にげきろう<br><br>
   全25レベルをクリアしよう!</p>
   <button class="btn-start" onclick="startGame()">スタート</button>
@@ -404,8 +404,8 @@ function showTitle() {
     <p class="subtitle">迷路を進んで数字を集めよう!</p>
     ${best > 0 ? `<p class="score-display">最高記録: ${best}</p>` : ''}
     <p>自分の数字は <b style="color:#40f080">2</b> からスタート<br>
-    自分より<b style="color:#40f080">小さい数字</b>を取ると、その分パワーアップ!<br>
-    自分より<b style="color:#e04060">大きい数字</b>に当たるとゲームオーバー<br><br>
+    自分より<b style="color:#40f080">小さい数字（●まる）</b>を取ると、その分パワーアップ!<br>
+    自分より<b style="color:#e04060">大きい数字（◆ひしがた）</b>に当たるとゲームオーバー<br><br>
     全25レベルをクリアしよう!</p>
     <button class="btn-start" onclick="startGame()">スタート</button>
   `;
@@ -485,9 +485,19 @@ function draw() {
     const ny = n.y * cellSize;
     const safe = n.val < playerNum;
     const r = cellSize * 0.4;
+    const cx = nx + cellSize / 2, cy = ny + cellSize / 2;
 
+    // Shape redundancy (not color alone): safe = circle, dangerous = diamond
     ctx.beginPath();
-    ctx.arc(nx + cellSize / 2, ny + cellSize / 2, r, 0, Math.PI * 2);
+    if (safe) {
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    } else {
+      ctx.moveTo(cx, cy - r);
+      ctx.lineTo(cx + r, cy);
+      ctx.lineTo(cx, cy + r);
+      ctx.lineTo(cx - r, cy);
+      ctx.closePath();
+    }
     ctx.fillStyle = safe ? COLORS.numSafe : COLORS.numDanger;
     ctx.fill();
     ctx.strokeStyle = safe ? '#1060a0' : '#a02040';

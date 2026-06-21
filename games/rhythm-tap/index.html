@@ -230,7 +230,7 @@ html, body {
     <span class="heart">❤️ ハート = 2点</span><br>
     <span class="heart">💛 金ハート = 3点</span><br>
     <span class="star">⭐ 星 = 1点</span><br>
-    <span class="bad">💣💀 = マイナス点</span><br><br>
+    <span class="bad">💣💀 = マイナス点（点線のわく）</span><br><br>
     コンボをつなげて高得点を目指そう！
   </div>
   <button id="start-btn">スタート！</button>
@@ -491,7 +491,9 @@ function spawnItem() {
   el.style.top = y + 'px';
   el.style.fontSize = (size * 0.55) + 'px';
   el.style.background = `radial-gradient(circle at 35% 35%, ${itemDef.color}44, ${itemDef.color}22)`;
-  el.style.border = `2px solid ${itemDef.color}66`;
+  // Shape redundancy (not color alone): bad items get a dashed border, good items solid
+  const isBad = itemDef.pts < 0;
+  el.style.border = `${isBad ? '3px dashed' : '2px solid'} ${itemDef.color}66`;
   el.style.boxShadow = `0 0 16px ${itemDef.color}33`;
   el.textContent = itemDef.emoji;
 
