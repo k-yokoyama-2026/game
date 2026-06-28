@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>モンスターたんけん</title>
+<link rel="stylesheet" href="../_shared/a11y.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: 'Hiragino Sans', 'Meiryo', monospace, sans-serif;
+  background: #0d1b2a; color: #fff; overflow: hidden;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+#wrap { position: fixed; inset: 0; display: flex; flex-direction: column; }
+#game { flex: 1; display: block; width: 100%; image-rendering: pixelated; background: #6bbf4f; }
+
+/* 上部HUD（フィールド時） */
+#hud {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem;
+  background: linear-gradient(#0009, #0000); font-size: 0.82rem; pointer-events: none;
+}
+#hud .pill { background: #1b3a2bdd; border: 2px solid #2e6b46; border-radius: 0.6rem; padding: 0.2rem 0.55rem; pointer-events: auto; }
+#hud .spacer { flex: 1; }
+#hud button { pointer-events: auto; font: inherit; font-size: 0.8rem; cursor: pointer;
+  background: #2e6b46; color: #fff; border: 2px solid #58b87a; border-radius: 0.6rem; padding: 0.25rem 0.7rem; }
+#hud button:active { transform: scale(0.95); }
+
+/* 十字キー（フィールド時） */
+#dpad { position: absolute; left: 0.6rem; bottom: 0.6rem; z-index: 6;
+  display: grid; grid-template-columns: repeat(3, 3rem); grid-template-rows: repeat(3, 3rem);
+  gap: 0.25rem; touch-action: none; }
+#dpad button { font-size: 1.3rem; background: #ffffffcc; color: #234; border: none; border-radius: 0.55rem; }
+#dpad button:active { background: #ffd54f; }
+#dpad .up { grid-area: 1/2; } #dpad .left { grid-area: 2/1; }
+#dpad .right { grid-area: 2/3; } #dpad .down { grid-area: 3/2; }
+#dpad .a { grid-area: 2/2; font-size: 0.8rem; background:#ffd54f; color:#5a3; }
+
+/* 共通オーバーレイ */
+.overlay { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center; padding: 1.2rem;
+  background: radial-gradient(circle at 50% 30%, #16324a, #0a1622); }
+.hidden { display: none !important; }
+h1 { font-size: 2rem; margin-bottom: 0.2rem; color: #ffe066; text-shadow: 0 3px 0 #b9821b; letter-spacing: 1px; }
+.sub { color: #bcd; font-size: 0.9rem; margin-bottom: 1.4rem; }
+.howto { font-size: 0.84rem; color: #cfe; line-height: 1.7; margin-bottom: 1.5rem; max-width: 22rem; }
+.bigbtn { font: inherit; font-weight: 800; font-size: 1.1rem; cursor: pointer; color: #2a2a2a;
+  background: linear-gradient(#ffe066, #f5a623);
+  border: none; border-radius: 0.9rem; padding: 0.8rem 2.2rem; box-shadow: 0 4px 0 #b9821b; }
+.bigbtn:active { transform: translateY(3px); box-shadow: 0 1px 0 #b9821b; }
+
+/* スターター選択 */
+.starters { display: flex; gap: 0.9rem; flex-wrap: wrap; justify-content: center; }
+.starter-card { width: 9rem; background: #11283a; border: 3px solid #2e6b86; border-radius: 1rem; padding: 0.8rem; cursor: pointer; }
+.starter-card:active { transform: scale(0.97); }
+.starter-card canvas { width: 6rem; height: 6rem; display: block; margin: 0 auto 0.4rem; }
+.starter-card .nm { font-weight: 800; font-size: 1.05rem; }
+.starter-card .tp { font-size: 0.78rem; margin-top: 0.2rem; }
+.starter-card .fl { font-size: 0.72rem; color: #9cc; margin-top: 0.35rem; line-height: 1.4; }
+
+/* バトルUI（下部・GB風メッセージ＆コマンド） */
+#battleUI { position: absolute; left: 0; right: 0; bottom: 0; z-index: 8; padding: 0.5rem; }
+.box { background: #f8f8f8; color: #1a1a1a; border: 4px solid #383838; border-radius: 0.7rem;
+  box-shadow: inset 0 0 0 2px #f8f8f8, inset 0 0 0 4px #888; }
+#msg { min-height: 4.4rem; padding: 0.7rem 0.9rem; font-size: 1.02rem; line-height: 1.5; cursor: pointer; position: relative; }
+#msg .cursor { position: absolute; right: 0.7rem; bottom: 0.5rem; color: #444; animation: blink 0.8s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.menu { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-top: 0.4rem; }
+.menu.one { grid-template-columns: 1fr; }
+.menu button { font: inherit; font-size: 0.98rem; font-weight: 700; cursor: pointer; text-align: left;
+  background: #fff; color: #1a1a1a; border: 3px solid #383838; border-radius: 0.55rem; padding: 0.55rem 0.7rem; }
+.menu button:active { background: #ffe066; }
+.menu button .mt { float: right; font-size: 0.72rem; color: #fff; padding: 0 0.4rem; border-radius: 0.5rem; }
+.menu button:disabled { opacity: 0.45; }
+.backbtn { background: #eee; }
+
+/* 手持ち/図鑑モーダル */
+#modal { position: absolute; inset: 0; z-index: 30; background: #06101bdd; display: flex;
+  align-items: center; justify-content: center; padding: 1rem; }
+#modal .panel { background: #11283a; border: 3px solid #2e6b86; border-radius: 1rem; padding: 1rem;
+  max-width: 26rem; width: 100%; max-height: 86%; overflow: auto; }
+#modal h2 { font-size: 1.2rem; margin-bottom: 0.7rem; color: #ffe066; }
+.mon-row { display: flex; align-items: center; gap: 0.7rem; background: #0d1f2e; border: 2px solid #24516b;
+  border-radius: 0.7rem; padding: 0.5rem 0.6rem; margin-bottom: 0.5rem; }
+.mon-row canvas { width: 3.2rem; height: 3.2rem; background: #08151f; border-radius: 0.5rem; }
+.mon-row .info { flex: 1; font-size: 0.85rem; line-height: 1.45; }
+.mon-row .nm { font-weight: 800; font-size: 1rem; }
+.hpbar { height: 0.55rem; background: #333; border-radius: 0.4rem; overflow: hidden; margin-top: 0.25rem; }
+.hpbar > i { display: block; height: 100%; background: #4caf50; }
+.modal-close { margin-top: 0.6rem; }
+.tag { display: inline-block; font-size: 0.7rem; font-weight: 800; color: #fff; border-radius: 0.5rem; padding: 0.05rem 0.45rem; }
+
+#toast { position: absolute; top: 3rem; left: 50%; transform: translateX(-50%); z-index: 25;
+  background: #1b3a2bee; border: 2px solid #58b87a; border-radius: 0.7rem; padding: 0.5rem 1rem;
+  font-size: 0.88rem; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+#toast.show { opacity: 1; }
+@media (max-width: 480px) { h1 { font-size: 1.6rem; } #msg { font-size: 0.94rem; } }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+
+  <!-- フィールドHUD -->
+  <div id="hud" class="hidden">
+    <span class="pill" id="ballPill">⚪ 0</span>
+    <span class="pill" id="partyPill">👾 0</span>
+    <span class="spacer"></span>
+    <button id="btnParty" type="button">てもち</button>
+    <button id="btnDex" type="button">ずかん</button>
+  </div>
+
+  <!-- 十字キー -->
+  <div id="dpad" class="hidden">
+    <button class="up" type="button" aria-label="上">▲</button>
+    <button class="left" type="button" aria-label="左">◀</button>
+    <button class="a" type="button" aria-label="決定">A</button>
+    <button class="right" type="button" aria-label="右">▶</button>
+    <button class="down" type="button" aria-label="下">▼</button>
+  </div>
+
+  <!-- バトルUI -->
+  <div id="battleUI" class="hidden">
+    <div id="msg" class="box">　<span class="cursor hidden">▼</span></div>
+    <div id="cmdArea"></div>
+  </div>
+
+  <!-- タイトル -->
+  <div id="title" class="overlay">
+    <h1>モンスターたんけん</h1>
+    <p class="sub">〜 ポケットなモンスター あつめ 〜</p>
+    <p class="howto">
+      草むらを あるくと モンスターが あらわれる！<br>
+      ボールで つかまえて なかまを ふやそう。<br>
+      <b style="color:#ffe066">そうさ</b>：やじるしキー / 画面の十字キー<br>
+      タイプ相性 → <b style="color:#f0843c">ほのお</b>▶<b style="color:#6fbf5a">くさ</b>▶<b style="color:#5aa0e0">みず</b>▶<b style="color:#f0843c">ほのお</b>
+    </p>
+    <button class="bigbtn" id="btnStart" type="button">ぼうけんを はじめる</button>
+  </div>
+
+  <!-- スターター選択 -->
+  <div id="starter" class="overlay hidden">
+    <h1 style="font-size:1.5rem">あいぼうを えらぼう</h1>
+    <p class="sub">さいしょの1ぴきを きめてね</p>
+    <div class="starters" id="starterCards"></div>
+  </div>
+
+  <div id="toast"></div>
+</div>
+
+<script src="../_shared/audio.js"></script>
+<script src="core.js"></script>
+<script>
+'use strict';
+const C = MQCore;
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+/* ====== サウンド（Web Audioで合成・音源ファイル不要） ====== */
+function audio() { try { return AudioFX.unlock(); } catch (e) {} }
+function beep(f, d, t, g, w) { try { AudioFX.tone(f, d, t, g, w); } catch (e) {} }
+const SFX = {
+  step() { beep(160, 0.04, 'square', 0.04); },
+  select() { beep(660, 0.06, 'square', 0.08); },
+  encounter() { [392, 523, 659].forEach((f, i) => beep(f, 0.12, 'square', 0.12, i * 0.08)); },
+  hit(eff) { beep(eff >= 2 ? 220 : 300, 0.12, 'sawtooth', 0.14); if (eff >= 2) beep(140, 0.18, 'square', 0.1, 0.05); },
+  faint() { [330, 262, 196, 131].forEach((f, i) => beep(f, 0.14, 'triangle', 0.13, i * 0.08)); },
+  throwball() { beep(500, 0.1, 'sine', 0.1); beep(300, 0.1, 'sine', 0.08, 0.08); },
+  caught() { [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.13, 'square', 0.13, i * 0.09)); },
+  levelup() { [523, 659, 784].forEach((f, i) => beep(f, 0.12, 'triangle', 0.12, i * 0.07)); },
+  evolve() { [262, 330, 392, 523, 659, 784].forEach((f, i) => beep(f, 0.14, 'square', 0.12, i * 0.1)); },
+  heal() { [659, 784, 988].forEach((f, i) => beep(f, 0.12, 'sine', 0.1, i * 0.08)); },
+};
+
+/* ====== マップ ====== */
+const T = C.TILE;
+const LEGEND = { '.': T.PATH, 'g': T.GRASS, 'T': T.TREE, '~': T.WATER, 'B': T.BUILDING, '*': T.FLOWER, 'D': T.DOOR };
+// D = かいふくハウス入口（踏むと全回復）
+const MAP_ART = [
+  'TTTTTTTTTTTTTTTTTTTT',
+  'T..*.....TT......*.T',
+  'T.BBBB.......BBBB..T',
+  'T.BBBB...**..BBBB..T',
+  'T..D.....**...D....T',
+  'T........TT........T',
+  'T..ggg.........gg..T',
+  'T.ggggg...TT.. gg..T',
+  'T.ggggg..~~~~.gggg.T',
+  'T..ggg...~~~~..ggg.T',
+  'T....TT..~~~~..T...T',
+  'T.gg.....gggg....g.T',
+  'T.gggg..gggggg.gggGT',
+  'T.gggg..gggggg..ggGT',
+  'T..gg.TT.gggg.TT.g.T',
+  'T..*..........*....T',
+  'TTTTTTTTTTTTTTTTTTTT',
+];
+// 'G' のtypoや空白を掃除して grid を作る
+function buildGrid(art) {
+  return art.map(row => row.split('').map(ch => {
+    if (ch === ' ' || ch === 'G') return T.GRASS; // 表記ゆれは草に寄せる
+    return LEGEND[ch] != null ? LEGEND[ch] : T.PATH;
+  }));
+}
+const grid = buildGrid(MAP_ART);
+const MAP_H = grid.length, MAP_W = grid[0].length;
+
+// 草むらの出現テーブル
+const WILD_TABLE = [
+  { species: 'nonezu',   min: 2, max: 5, weight: 32 },
+  { species: 'hanedori', min: 2, max: 5, weight: 24 },
+  { species: 'mushimaru',min: 2, max: 5, weight: 18 },
+  { species: 'ishigoro', min: 3, max: 6, weight: 12 },
+  { species: 'hinoko',   min: 3, max: 6, weight: 5 },
+  { species: 'mizuti',   min: 3, max: 6, weight: 5 },
+  { species: 'kusamo',   min: 3, max: 6, weight: 4 },
+];
+
+/* ====== ゲーム状態 ====== */
+const DEX_KEY = 'mq_dex';
+const state = {
+  scene: 'title',
+  player: { x: 6, y: 5, dir: 'down' },
+  party: [],
+  balls: { normal: 5, super: 0 },
+  dex: new Set(),
+  steps: 0, walkBob: 0,
+};
+function loadDex() { try { const v = JSON.parse(localStorage.getItem(DEX_KEY) || '[]'); state.dex = new Set(v); } catch (e) { state.dex = new Set(); } }
+function saveDex() { try { localStorage.setItem(DEX_KEY, JSON.stringify([...state.dex])); } catch (e) {} }
+function dexAdd(species) { if (!state.dex.has(species)) { state.dex.add(species); saveDex(); } }
+loadDex();
+
+/* ====== キャンバスサイズ ====== */
+function resize() {
+  const r = canvas.getBoundingClientRect();
+  canvas.width = Math.max(1, Math.floor(r.width));
+  canvas.height = Math.max(1, Math.floor(r.height));
+}
+window.addEventListener('resize', () => { resize(); });
+
+/* ====== スプライト（手続き描画・画像不要） ====== */
+function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function shade(hex, f) {
+  const n = parseInt(hex.slice(1), 16); let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  r = Math.round(Math.min(255, Math.max(0, r * f))); g = Math.round(Math.min(255, Math.max(0, g * f))); b = Math.round(Math.min(255, Math.max(0, b * f)));
+  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+// モンスターを cx,cy 中心・半径rで描く。speciesでちょっと形が変わる。
+function drawMonster(g, species, cx, cy, r, facing) {
+  const sp = C.SPECIES[species];
+  const col = C.TYPE_COLOR[sp.type];
+  const h = hash(species);
+  const flip = facing === 'right' ? -1 : 1;
+  g.save();
+  g.translate(cx, cy); g.scale(flip, 1);
+  // 体
+  g.fillStyle = col; g.strokeStyle = shade(col, 0.6); g.lineWidth = Math.max(2, r * 0.06);
+  g.beginPath();
+  const bodyR = r * 0.78;
+  g.ellipse(0, r * 0.08, bodyR, bodyR * 0.92, 0, 0, Math.PI * 2);
+  g.fill(); g.stroke();
+  // 耳/角/ひれ（種ごとに変える）
+  g.fillStyle = shade(col, 0.85);
+  const earKind = h % 3;
+  if (earKind === 0) { // とんがり耳
+    for (const sx of [-1, 1]) { g.beginPath(); g.moveTo(sx * r * 0.45, -r * 0.5); g.lineTo(sx * r * 0.2, -r * 0.95); g.lineTo(sx * r * 0.1, -r * 0.45); g.closePath(); g.fill(); g.stroke(); }
+  } else if (earKind === 1) { // まるい耳
+    for (const sx of [-1, 1]) { g.beginPath(); g.arc(sx * r * 0.5, -r * 0.55, r * 0.22, 0, Math.PI * 2); g.fill(); g.stroke(); }
+  } else { // ひれ/しっぽ
+    g.beginPath(); g.moveTo(r * 0.7, -r * 0.1); g.lineTo(r * 1.05, -r * 0.45); g.lineTo(r * 0.95, r * 0.2); g.closePath(); g.fill(); g.stroke();
+  }
+  // おなかの模様
+  g.fillStyle = shade(col, 1.25); g.beginPath();
+  g.ellipse(0, r * 0.25, bodyR * 0.5, bodyR * 0.45, 0, 0, Math.PI * 2); g.fill();
+  // 目
+  g.fillStyle = '#fff';
+  for (const sx of [-1, 1]) { g.beginPath(); g.ellipse(sx * r * 0.28, -r * 0.12, r * 0.16, r * 0.2, 0, 0, Math.PI * 2); g.fill(); }
+  g.fillStyle = '#1a1a1a';
+  for (const sx of [-1, 1]) { g.beginPath(); g.arc(sx * r * 0.3, -r * 0.08, r * 0.08, 0, Math.PI * 2); g.fill(); }
+  // ほっぺ（ほのおは赤め）
+  if (sp.type === 'ほのお') { g.fillStyle = '#ff5a3c88'; for (const sx of [-1, 1]) { g.beginPath(); g.arc(sx * r * 0.45, r * 0.12, r * 0.12, 0, Math.PI * 2); g.fill(); } }
+  // 口
+  g.strokeStyle = '#1a1a1a'; g.lineWidth = Math.max(1.5, r * 0.04);
+  g.beginPath(); g.arc(0, r * 0.05, r * 0.12, 0.1 * Math.PI, 0.9 * Math.PI); g.stroke();
+  g.restore();
+}
+// トレーナー（プレイヤー）
+function drawTrainer(g, cx, cy, r, dir, bob) {
+  g.save(); g.translate(cx, cy + (bob || 0));
+  // 体
+  g.fillStyle = '#e74c3c'; g.strokeStyle = '#922'; g.lineWidth = r * 0.08;
+  g.beginPath(); g.ellipse(0, r * 0.45, r * 0.5, r * 0.45, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+  // 頭
+  g.fillStyle = '#f4c9a0'; g.strokeStyle = '#b88'; g.beginPath(); g.arc(0, -r * 0.15, r * 0.42, 0, Math.PI * 2); g.fill(); g.stroke();
+  // ぼうし
+  g.fillStyle = '#2980b9'; g.beginPath(); g.arc(0, -r * 0.2, r * 0.44, Math.PI, 0); g.fill();
+  g.fillRect(-r * 0.44, -r * 0.24, r * 0.88, r * 0.12);
+  g.fillStyle = '#fff'; g.beginPath(); g.arc(0, -r * 0.34, r * 0.12, 0, Math.PI * 2); g.fill();
+  // 目（向きで位置）
+  g.fillStyle = '#222';
+  const ex = dir === 'left' ? -0.15 : dir === 'right' ? 0.15 : 0;
+  if (dir !== 'up') { for (const sx of [-1, 1]) { g.beginPath(); g.arc((sx * 0.16 + ex) * r, -r * 0.12, r * 0.06, 0, Math.PI * 2); g.fill(); } }
+  g.restore();
+}
+
+/* ====== フィールド描画 ====== */
+const TILE_PX_BASE = 44;
+function tilePx() { return Math.max(34, Math.min(56, Math.floor(canvas.height / 10))); }
+function drawField() {
+  const tp = tilePx();
+  // カメラ（プレイヤー中心・端でクランプ）
+  let camX = (state.player.x + 0.5) * tp - canvas.width / 2;
+  let camY = (state.player.y + 0.5) * tp - canvas.height / 2;
+  camX = Math.max(0, Math.min(camX, MAP_W * tp - canvas.width));
+  camY = Math.max(0, Math.min(camY, MAP_H * tp - canvas.height));
+  if (MAP_W * tp < canvas.width) camX = (MAP_W * tp - canvas.width) / 2;
+  if (MAP_H * tp < canvas.height) camY = (MAP_H * tp - canvas.height) / 2;
+
+  ctx.fillStyle = '#6bbf4f'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const x0 = Math.floor(camX / tp), y0 = Math.floor(camY / tp);
+  const x1 = Math.ceil((camX + canvas.width) / tp), y1 = Math.ceil((camY + canvas.height) / tp);
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    if (y < 0 || y >= MAP_H || x < 0 || x >= MAP_W) continue;
+    const sx = Math.round(x * tp - camX), sy = Math.round(y * tp - camY);
+    drawTile(ctx, grid[y][x], sx, sy, tp, x, y);
+  }
+  // プレイヤー
+  const px = Math.round((state.player.x + 0.5) * tp - camX);
+  const py = Math.round((state.player.y + 0.5) * tp - camY);
+  ctx.fillStyle = '#0003'; ctx.beginPath(); ctx.ellipse(px, py + tp * 0.32, tp * 0.3, tp * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+  drawTrainer(ctx, px, py - tp * 0.05, tp * 0.42, state.player.dir, state.walkBob);
+}
+function drawTile(g, t, x, y, s, gx, gy) {
+  // ベースの草
+  g.fillStyle = ((gx + gy) % 2 === 0) ? '#6bbf4f' : '#63b647';
+  g.fillRect(x, y, s, s);
+  if (t === T.PATH) { g.fillStyle = '#d9c49a'; g.fillRect(x, y, s, s); g.fillStyle = '#cbb487'; for (let i = 0; i < 3; i++) g.fillRect(x + ((gx * 7 + i * 13) % s), y + ((gy * 11 + i * 17) % s), 2, 2); }
+  else if (t === T.GRASS) {
+    g.fillStyle = '#3f9e3a'; g.fillRect(x, y, s, s);
+    g.fillStyle = '#2f8c2c';
+    for (let i = 0; i < 5; i++) { const bx = x + (i * 9 + (gx * 5) % 7) % (s - 4); const by = y + s - 6 - (i % 2) * 5; g.fillRect(bx, by, 3, 8); }
+    g.fillStyle = '#57b84e'; g.fillRect(x, y, s, 3);
+  }
+  else if (t === T.TREE) {
+    g.fillStyle = '#6bbf4f'; g.fillRect(x, y, s, s);
+    g.fillStyle = '#1f6b2a'; g.beginPath(); g.arc(x + s / 2, y + s * 0.42, s * 0.42, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#2f8c3a'; g.beginPath(); g.arc(x + s * 0.38, y + s * 0.35, s * 0.22, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#7a4a22'; g.fillRect(x + s * 0.44, y + s * 0.6, s * 0.12, s * 0.32);
+  }
+  else if (t === T.WATER) {
+    g.fillStyle = '#3a7bd0'; g.fillRect(x, y, s, s);
+    g.fillStyle = '#5a9ae8'; g.fillRect(x, y + (gx + gy) % 2 * 4 + 6, s, 3); g.fillRect(x, y + s * 0.55, s, 3);
+  }
+  else if (t === T.BUILDING) {
+    g.fillStyle = '#c0392b'; g.fillRect(x, y, s, s); // 屋根/壁
+    g.fillStyle = '#962d22'; g.fillRect(x, y, s, s * 0.32);
+    g.fillStyle = '#e9d9b0'; g.fillRect(x + s * 0.15, y + s * 0.4, s * 0.7, s * 0.55);
+  }
+  else if (t === T.DOOR) {
+    g.fillStyle = '#e9d9b0'; g.fillRect(x, y, s, s);
+    g.fillStyle = '#6b4a2a'; g.fillRect(x + s * 0.25, y + s * 0.18, s * 0.5, s * 0.82);
+    g.fillStyle = '#ffd54f'; g.font = `${Math.floor(s * 0.34)}px sans-serif`; g.textAlign = 'center'; g.fillText('＋', x + s / 2, y + s * 0.42);
+  }
+  else if (t === T.FLOWER) {
+    g.fillStyle = '#6bbf4f'; g.fillRect(x, y, s, s);
+    g.fillStyle = '#ff6fa5'; g.beginPath(); g.arc(x + s * 0.5, y + s * 0.5, s * 0.12, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#ffd54f'; g.beginPath(); g.arc(x + s * 0.5, y + s * 0.5, s * 0.05, 0, Math.PI * 2); g.fill();
+  }
+}
+
+/* ====== バトル描画 ====== */
+const battle = {
+  active: false, enemy: null, mine: null, mineIdx: 0,
+  flashEnemy: 0, flashMine: 0, ballAnim: 0, enemyOut: 0, mineOut: 0,
+};
+function activeMon() { return state.party[battle.mineIdx]; }
+function drawBattle() {
+  const W = canvas.width, H = canvas.height;
+  // 背景
+  const grd = ctx.createLinearGradient(0, 0, 0, H);
+  grd.addColorStop(0, '#bfe6ff'); grd.addColorStop(1, '#e9f7c8');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
+  const sceneH = H * 0.62;
+  // 地面の台
+  function platform(cx, cy, rw) { ctx.fillStyle = '#9bd06a'; ctx.beginPath(); ctx.ellipse(cx, cy, rw, rw * 0.28, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#86bd58'; ctx.beginPath(); ctx.ellipse(cx, cy, rw * 0.7, rw * 0.18, 0, 0, Math.PI * 2); ctx.fill(); }
+  const er = Math.min(W, sceneH) * 0.17;
+  const enemyX = W * 0.74 + (battle.enemyOut > 0 ? battle.enemyOut * 60 : 0);
+  const enemyY = sceneH * 0.42;
+  platform(W * 0.74, enemyY + er * 0.85, er * 1.5);
+  const mr = Math.min(W, sceneH) * 0.2;
+  const mineX = W * 0.26 - (battle.mineOut > 0 ? battle.mineOut * 60 : 0);
+  const mineY = sceneH * 0.86;
+  platform(W * 0.26, mineY + mr * 0.7, mr * 1.6);
+
+  // 敵モンスター（捕獲アニメ中は縮む）
+  if (battle.enemy && battle.ballAnim < 1) {
+    const scale = 1 - battle.ballAnim;
+    const fl = battle.flashEnemy > 0 && Math.floor(battle.flashEnemy * 12) % 2 === 0;
+    ctx.save(); ctx.globalAlpha = battle.enemyOut > 0 ? Math.max(0, 1 - battle.enemyOut) : 1;
+    if (fl) ctx.globalAlpha *= 0.35;
+    drawMonster(ctx, battle.enemy.species, enemyX, enemyY, er * scale, 'left');
+    ctx.restore();
+  }
+  // 自分のモンスター（後ろ姿っぽく大きめ）
+  if (battle.active && activeMon()) {
+    const fl = battle.flashMine > 0 && Math.floor(battle.flashMine * 12) % 2 === 0;
+    ctx.save(); ctx.globalAlpha = (battle.mineOut > 0 ? Math.max(0, 1 - battle.mineOut) : 1) * (fl ? 0.35 : 1);
+    drawMonster(ctx, activeMon().species, mineX, mineY, mr, 'right');
+    ctx.restore();
+  }
+  // ボールアニメ
+  if (battle.ballAnim > 0 && battle.ballAnim < 1) {
+    const t = battle.ballAnim; const bx = mineX + (enemyX - mineX) * Math.min(1, t * 2);
+    const by = mineY + (enemyY - mineY) * Math.min(1, t * 2) - Math.sin(Math.min(1, t * 2) * Math.PI) * 80;
+    drawBall(ctx, bx, by, 16);
+  }
+
+  // HPボックス
+  if (battle.enemy) drawHpBox(ctx, battle.enemy, W * 0.04, sceneH * 0.06, W * 0.44, false);
+  if (battle.active && activeMon()) drawHpBox(ctx, activeMon(), W * 0.52, sceneH * 0.52, W * 0.44, true);
+}
+function drawBall(g, x, y, r) {
+  g.fillStyle = '#e74c3c'; g.beginPath(); g.arc(x, y, r, Math.PI, 0); g.fill();
+  g.fillStyle = '#f8f8f8'; g.beginPath(); g.arc(x, y, r, 0, Math.PI); g.fill();
+  g.strokeStyle = '#222'; g.lineWidth = 2; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.stroke();
+  g.beginPath(); g.moveTo(x - r, y); g.lineTo(x + r, y); g.stroke();
+  g.fillStyle = '#f8f8f8'; g.beginPath(); g.arc(x, y, r * 0.32, 0, Math.PI * 2); g.fill(); g.stroke();
+}
+function drawHpBox(g, mon, x, y, w, mine) {
+  const h = w * 0.30;
+  g.fillStyle = '#f8f8f8'; g.strokeStyle = '#383838'; g.lineWidth = 3;
+  roundRect(g, x, y, w, h, 8); g.fill(); g.stroke();
+  g.fillStyle = '#222'; g.textAlign = 'left'; g.font = `bold ${Math.floor(h * 0.3)}px sans-serif`;
+  g.fillText(mon.name, x + w * 0.06, y + h * 0.34);
+  g.textAlign = 'right'; g.fillText('Lv' + mon.level, x + w * 0.94, y + h * 0.34);
+  // タイプタグ
+  g.fillStyle = C.TYPE_COLOR[mon.type]; const tw = w * 0.2;
+  roundRect(g, x + w * 0.06, y + h * 0.42, tw, h * 0.26, 4); g.fill();
+  g.fillStyle = '#fff'; g.textAlign = 'center'; g.font = `bold ${Math.floor(h * 0.2)}px sans-serif`;
+  g.fillText(mon.type, x + w * 0.06 + tw / 2, y + h * 0.62);
+  // HPバー
+  const bx = x + w * 0.30, by = y + h * 0.5, bw = w * 0.64, bh = h * 0.18;
+  g.fillStyle = '#444'; roundRect(g, bx, by, bw, bh, bh / 2); g.fill();
+  const ratio = Math.max(0, mon.hp / mon.maxHp);
+  g.fillStyle = ratio > 0.5 ? '#4caf50' : ratio > 0.2 ? '#f5a623' : '#e74c3c';
+  roundRect(g, bx, by, Math.max(2, bw * ratio), bh, bh / 2); g.fill();
+  if (mine) { g.fillStyle = '#222'; g.textAlign = 'right'; g.font = `bold ${Math.floor(h * 0.2)}px sans-serif`; g.fillText(`${Math.max(0, mon.hp)}/${mon.maxHp}`, x + w * 0.94, y + h * 0.92); }
+}
+function roundRect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+
+/* ====== メインループ ====== */
+let last = 0;
+function loop(t) {
+  const dt = Math.min(0.05, (t - last) / 1000 || 0); last = t;
+  // アニメ減衰
+  if (battle.flashEnemy > 0) battle.flashEnemy = Math.max(0, battle.flashEnemy - dt);
+  if (battle.flashMine > 0) battle.flashMine = Math.max(0, battle.flashMine - dt);
+  if (state.walkBob !== 0) state.walkBob *= 0.8;
+  if (state.scene === 'field') drawField();
+  else if (state.scene === 'battle') drawBattle();
+  else { ctx.fillStyle = '#0d1b2a'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+  requestAnimationFrame(loop);
+}
+
+/* ====== UI 切り替え ====== */
+const el = id => document.getElementById(id);
+function show(id) { el(id).classList.remove('hidden'); }
+function hide(id) { el(id).classList.add('hidden'); }
+function setScene(s) {
+  state.scene = s;
+  el('title').classList.toggle('hidden', s !== 'title');
+  el('starter').classList.toggle('hidden', s !== 'starterSelect');
+  el('hud').classList.toggle('hidden', s !== 'field');
+  el('dpad').classList.toggle('hidden', s !== 'field');
+  el('battleUI').classList.toggle('hidden', s !== 'battle');
+  if (s === 'field') updateHud();
+}
+function updateHud() {
+  el('ballPill').textContent = '⚪ ' + state.balls.normal + (state.balls.super ? ' / 🟦 ' + state.balls.super : '');
+  el('partyPill').textContent = '👾 ' + state.party.length + '/6';
+}
+let toastTimer = null;
+function toast(msg) { const t = el('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200); }
+
+/* ====== タイトル / スターター ====== */
+function startGame() {
+  audio();
+  if (state.party.length > 0) { setScene('field'); return; }
+  setScene('starterSelect');
+  buildStarterCards();
+}
+function buildStarterCards() {
+  const wrap = el('starterCards'); wrap.innerHTML = '';
+  C.STARTERS.forEach(sid => {
+    const sp = C.SPECIES[sid];
+    const card = document.createElement('div'); card.className = 'starter-card';
+    const cv = document.createElement('canvas'); cv.width = 120; cv.height = 120;
+    card.appendChild(cv);
+    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = sp.name; card.appendChild(nm);
+    const tp = document.createElement('div'); tp.className = 'tp';
+    tp.innerHTML = `<span class="tag" style="background:${C.TYPE_COLOR[sp.type]}">${sp.type}</span>`; card.appendChild(tp);
+    const fl = document.createElement('div'); fl.className = 'fl'; fl.textContent = sp.flavor; card.appendChild(fl);
+    card.onclick = () => chooseStarter(sid);
+    wrap.appendChild(card);
+    const g = cv.getContext('2d'); drawMonster(g, sid, 60, 64, 44, 'left');
+  });
+}
+function chooseStarter(sid) {
+  audio(); SFX.select();
+  const mon = C.makeMonster(sid, 5);
+  state.party = [mon];
+  dexAdd(sid);
+  setScene('field');
+  toast(sp_name(sid) + ' を なかまにした！');
+}
+function sp_name(sid) { return C.SPECIES[sid].name; }
+
+/* ====== フィールド移動 ====== */
+const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+let moveLock = false;
+function movePlayer(dx, dy) {
+  if (state.scene !== 'field' || moveLock) return;
+  const dir = dx < 0 ? 'left' : dx > 0 ? 'right' : dy < 0 ? 'up' : 'down';
+  state.player.dir = dir;
+  const res = C.tryMove(grid, state.player.x, state.player.y, dx, dy);
+  if (!res.moved) { SFX.step(); return; }
+  state.player.x = res.x; state.player.y = res.y;
+  state.walkBob = -4; state.steps++;
+  SFX.step();
+  // かいふくハウス
+  if (C.tileAt(grid, res.x, res.y) === T.DOOR) { healAtCenter(); return; }
+  // 草むらエンカウント
+  if (C.isGrass(grid, res.x, res.y) && C.rollEncounter(Math.random, 0.16)) {
+    startEncounter();
+  }
+}
+function healAtCenter() {
+  C.healAll(state.party);
+  // ボールも補充（捕獲できなくなって詰まないように）
+  let gift = '';
+  if (state.balls.normal < 5) { state.balls.normal = 5; gift = '＋ボール'; }
+  state.visits = (state.visits || 0) + 1;
+  if (state.visits % 3 === 0) { state.balls.super += 1; gift = '＋スーパーボール'; }
+  SFX.heal();
+  toast('かいふくハウス：ぜんかいふく！ ' + gift);
+  updateHud();
+}
+
+/* ====== バトル ====== */
+let msgQueue = [], msgDone = null, awaitingMsg = false;
+function setMsg(text) { const m = el('msg'); if (m.firstChild && 'nodeValue' in m.firstChild) m.firstChild.nodeValue = text; else m._smokeText = text; }
+function showMessages(arr, onDone) {
+  msgQueue = Array.isArray(arr) ? arr.slice() : [arr];
+  msgDone = onDone || null;
+  el('cmdArea').innerHTML = '';
+  nextMessage(true);
+}
+function nextMessage(first) {
+  const cur = el('msg').querySelector('.cursor');
+  if (msgQueue.length === 0) {
+    awaitingMsg = false; cur.classList.add('hidden');
+    const d = msgDone; msgDone = null; if (d) d();
+    return;
+  }
+  setMsg(msgQueue.shift());
+  awaitingMsg = true; cur.classList.remove('hidden');
+}
+function advanceMsg() { if (awaitingMsg) { SFX.select(); nextMessage(); } }
+el('msg').addEventListener('click', advanceMsg);
+
+function startEncounter() {
+  audio(); SFX.encounter();
+  const enemy = C.spawnWild(WILD_TABLE, Math.random);
+  beginBattle(enemy);
+}
+function beginBattle(enemy) {
+  battle.active = true; battle.enemy = enemy;
+  battle.mineIdx = Math.max(0, C.firstHealthy(state.party));
+  battle.ballAnim = 0; battle.enemyOut = 0; battle.mineOut = 0; battle.flashEnemy = 0; battle.flashMine = 0;
+  dexAdd(enemy.species);
+  setScene('battle');
+  showMessages(['あっ！ やせいの ' + enemy.name + ' が とびだしてきた！'], showCommandMenu);
+}
+function showCommandMenu() {
+  if (!battle.active) return;
+  const area = el('cmdArea');
+  area.innerHTML = '';
+  const menu = document.createElement('div'); menu.className = 'menu';
+  menu.appendChild(cmdBtn('たたかう', showMoveMenu));
+  menu.appendChild(cmdBtn('ボール', showBagMenu));
+  menu.appendChild(cmdBtn('いれかえ', showSwitchMenu));
+  menu.appendChild(cmdBtn('にげる', tryRun));
+  area.appendChild(menu);
+  setMsg(activeMon().name + ' どうする？');
+  el('msg').querySelector('.cursor').classList.add('hidden');
+}
+function cmdBtn(label, fn, opts) {
+  const b = document.createElement('button'); b.type = 'button'; b.innerHTML = label;
+  if (opts && opts.disabled) b.disabled = true;
+  b.onclick = () => { audio(); SFX.select(); fn(); };
+  return b;
+}
+function backBtn(area) { const m = document.createElement('div'); m.className = 'menu one'; const b = cmdBtn('◀ もどる', showCommandMenu); b.classList.add('backbtn'); m.appendChild(b); area.appendChild(m); }
+
+function showMoveMenu() {
+  const area = el('cmdArea'); area.innerHTML = '';
+  const mon = activeMon();
+  const menu = document.createElement('div'); menu.className = 'menu';
+  mon.moves.forEach(mid => {
+    const mv = C.MOVES[mid];
+    const b = cmdBtn(`${mv.name}<span class="mt" style="background:${C.TYPE_COLOR[mv.type]}">${mv.type}</span>`, () => playerMove(mid));
+    menu.appendChild(b);
+  });
+  area.appendChild(menu); backBtn(area);
+  setMsg('わざを えらんでね');
+}
+function showBagMenu() {
+  const area = el('cmdArea'); area.innerHTML = '';
+  const menu = document.createElement('div'); menu.className = 'menu';
+  menu.appendChild(cmdBtn(`モンスターボール ×${state.balls.normal}`, () => throwBall('normal'), { disabled: state.balls.normal <= 0 }));
+  menu.appendChild(cmdBtn(`スーパーボール ×${state.balls.super}`, () => throwBall('super'), { disabled: state.balls.super <= 0 }));
+  area.appendChild(menu); backBtn(area);
+  setMsg('どの ボールを なげる？');
+}
+function showSwitchMenu() {
+  const area = el('cmdArea'); area.innerHTML = '';
+  const menu = document.createElement('div'); menu.className = 'menu one';
+  state.party.forEach((m, i) => {
+    const label = `${m.name} <span style="float:right;font-size:0.8rem">Lv${m.level}  HP ${Math.max(0, m.hp)}/${m.maxHp}</span>`;
+    menu.appendChild(cmdBtn(label, () => doSwitch(i), { disabled: i === battle.mineIdx || C.isFainted(m) }));
+  });
+  area.appendChild(menu); backBtn(area);
+  setMsg('だれに いれかえる？');
+}
+
+// 行動の順番をスピードで決め、ターンを処理
+function order(playerFirstAlways) {
+  if (playerFirstAlways) return ['me', 'enemy'];
+  const ms = activeMon().spd, es = battle.enemy.spd;
+  if (ms === es) return Math.random() < 0.5 ? ['me', 'enemy'] : ['enemy', 'me'];
+  return ms >= es ? ['me', 'enemy'] : ['enemy', 'me'];
+}
+
+function playerMove(mid) {
+  el('cmdArea').innerHTML = '';
+  const seq = order(false);
+  const msgs = [];
+  let ended = false;
+  const acts = {
+    me: () => { if (ended) return; ended = doAttack(activeMon(), battle.enemy, mid, true, msgs); },
+    enemy: () => { if (ended) return; ended = doAttack(battle.enemy, activeMon(), C.chooseEnemyMove(battle.enemy, activeMon(), Math.random), false, msgs); },
+  };
+  acts[seq[0]](); acts[seq[1]]();
+  showMessages(msgs, afterTurn);
+}
+// 攻撃を1回処理。戦闘が終了したら true。
+function doAttack(attacker, defender, mid, byPlayer, msgs) {
+  const mv = C.MOVES[mid];
+  msgs.push((byPlayer ? '' : 'あいての ') + attacker.name + 'の ' + mv.name + '！');
+  if (!C.rollHit(mv, Math.random)) { msgs.push('しかし こうげきは はずれた！'); return false; }
+  const r = C.calcDamage(attacker, defender, mid, Math.random);
+  defender.hp = Math.max(0, defender.hp - r.damage);
+  // 演出フラグ（メッセージ送り時に発火させる）
+  msgs.push({ _fx: byPlayer ? 'enemy' : 'mine', eff: r.effectiveness });
+  const lab = C.effectivenessLabel(r.effectiveness);
+  if (lab) msgs.push(lab);
+  if (C.isFainted(defender)) {
+    if (byPlayer) { msgs.push('あいての ' + defender.name + ' を たおした！'); msgs.push({ _faint: 'enemy' }); pushWinSeq(msgs); return true; }
+    else { msgs.push(defender.name + ' は たおれた…'); msgs.push({ _faint: 'mine' }); return handleMineFaint(msgs); }
+  }
+  return false;
+}
+// 勝利時の経験値処理をメッセージ列に積む
+function pushWinSeq(msgs) {
+  const mon = activeMon();
+  const gain = C.expGain(battle.enemy);
+  const ev = C.gainExp(mon, gain);
+  msgs.push(mon.name + ' は ' + gain + ' けいけんちを もらった！');
+  if (ev.levelsGained > 0) { msgs.push({ _sfx: 'levelup' }); msgs.push(mon.name + ' は レベル ' + mon.level + ' に あがった！'); }
+  ev.learned.forEach(m => msgs.push(mon.name + ' は ' + C.MOVES[m].name + ' を おぼえた！'));
+  if (ev.evolvedTo) { msgs.push({ _sfx: 'evolve' }); msgs.push('おや…？ ' + ev.evolvedTo + ' に しんかした！'); }
+  msgs.push({ _end: 'win' });
+}
+// 自分の手持ちが倒れたとき。次がいれば交代、いなければ全滅。
+function handleMineFaint(msgs) {
+  const next = C.firstHealthy(state.party);
+  if (next < 0) { msgs.push('目の前が まっくらに なった…'); msgs.push({ _end: 'lose' }); return true; }
+  msgs.push({ _switchTo: next });
+  msgs.push('がんばれ！ つぎは だれだ？');
+  return false; // 戦闘は続く（交代後にメニュー）
+}
+
+function throwBall(ballId) {
+  el('cmdArea').innerHTML = '';
+  state.balls[ballId]--; updateHud();
+  const success = C.tryCatch(battle.enemy, ballId, Math.random);
+  const msgs = [];
+  msgs.push((C.BALLS[ballId].name) + ' を なげた！');
+  msgs.push({ _ball: true });
+  if (success) {
+    msgs.push('やったー！ ' + battle.enemy.name + ' を つかまえた！');
+    msgs.push({ _catch: true });
+    if (state.party.length >= 6) msgs.push(battle.enemy.name + ' は おうちで まっている。（てもちが いっぱい）');
+    msgs.push({ _end: 'catch' });
+    showMessages(msgs, afterTurn); return;
+  }
+  msgs.push('ああっ！ ' + battle.enemy.name + ' に にげられた！…とおもったが まだ いる！');
+  // 失敗 → 敵の反撃
+  const ended = doAttack(battle.enemy, activeMon(), C.chooseEnemyMove(battle.enemy, activeMon(), Math.random), false, msgs);
+  showMessages(msgs, afterTurn);
+}
+function doSwitch(i) {
+  el('cmdArea').innerHTML = '';
+  battle.mineIdx = i; battle.mineOut = 0;
+  const msgs = ['いけっ！ ' + state.party[i].name + '！'];
+  // 交代はターン消費 → 敵の攻撃
+  doAttack(battle.enemy, activeMon(), C.chooseEnemyMove(battle.enemy, activeMon(), Math.random), false, msgs);
+  showMessages(msgs, afterTurn);
+}
+function tryRun() {
+  el('cmdArea').innerHTML = '';
+  const mine = activeMon();
+  const chance = mine.spd >= battle.enemy.spd ? 0.9 : 0.5;
+  if (Math.random() < chance) { showMessages(['うまく にげきれた！', { _end: 'run' }], afterTurn); }
+  else {
+    const msgs = ['にげられない！'];
+    doAttack(battle.enemy, activeMon(), C.chooseEnemyMove(battle.enemy, activeMon(), Math.random), false, msgs);
+    showMessages(msgs, afterTurn);
+  }
+}
+
+// メッセージ列に埋め込んだ制御オブジェクトを処理するため、nextMessage を拡張
+const _origNext = nextMessage;
+nextMessage = function (first) {
+  // 制御オブジェクトを連続で消化
+  while (msgQueue.length && typeof msgQueue[0] === 'object') {
+    const o = msgQueue.shift();
+    if (o._fx === 'enemy') { battle.flashEnemy = 0.4; SFX.hit(o.eff); }
+    else if (o._fx === 'mine') { battle.flashMine = 0.4; SFX.hit(o.eff); }
+    else if (o._faint) { SFX.faint(); if (o._faint === 'enemy') battle.enemyOut = 0.01, animateOut('enemy'); else battle.mineOut = 0.01, animateOut('mine'); }
+    else if (o._sfx === 'levelup') SFX.levelup();
+    else if (o._sfx === 'evolve') SFX.evolve();
+    else if (o._ball) { SFX.throwball(); animateBall(); }
+    else if (o._catch) { SFX.caught(); doCatch(); }
+    else if (o._switchTo != null) { battle.mineIdx = o._switchTo; }
+    else if (o._end) { battle._pendingEnd = o._end; }
+  }
+  _origNext(first);
+};
+function doCatch() {
+  if (state.party.length < 6) state.party.push(battle.enemy);
+  dexAdd(battle.enemy.species);
+  updateHud();
+}
+function animateOut(who) {
+  const key = who === 'enemy' ? 'enemyOut' : 'mineOut';
+  const start = performance.now();
+  function step(t) { const p = Math.min(1, (t - start) / 400); battle[key] = p; if (p < 1) requestAnimationFrame(step); }
+  requestAnimationFrame(step);
+}
+function animateBall() {
+  battle.ballAnim = 0.001; const start = performance.now();
+  function step(t) { const p = Math.min(1, (t - start) / 700); battle.ballAnim = p; if (p < 1) requestAnimationFrame(step); else battle.ballAnim = 1; }
+  requestAnimationFrame(step);
+}
+
+function afterTurn() {
+  if (battle._pendingEnd) { const e = battle._pendingEnd; battle._pendingEnd = null; return endBattle(e); }
+  // 戦闘継続：自分が倒れていたら（反撃で）交代を促す
+  if (C.isFainted(activeMon())) {
+    const next = C.firstHealthy(state.party);
+    if (next < 0) { showMessages(['目の前が まっくらに なった…', { _end: 'lose' }], () => endBattle('lose')); return; }
+    battle.mineIdx = next; battle.mineOut = 0;
+    showMessages(['いけっ！ ' + activeMon().name + '！'], showCommandMenu); return;
+  }
+  showCommandMenu();
+}
+function endBattle(kind) {
+  battle.active = false;
+  if (kind === 'lose') {
+    C.healAll(state.party);
+    state.player.x = 6; state.player.y = 5; state.player.dir = 'down';
+    toast('かいふくハウスで めをさました…');
+  }
+  battle.enemy = null; battle.ballAnim = 0; battle.enemyOut = 0; battle.mineOut = 0;
+  setScene('field'); updateHud();
+}
+
+/* ====== てもち / ずかん モーダル ====== */
+function openParty() {
+  audio();
+  const m = renderModal('てもち（' + state.party.length + '/6）', () => {
+    return state.party.map((mon, i) => monRow(mon, i === battle.mineIdx)).join('');
+  });
+  decorateMonCanvases();
+}
+function openDex() {
+  audio();
+  const all = Object.keys(C.SPECIES);
+  const seen = all.filter(s => state.dex.has(s)).length;
+  renderModal('ずかん（' + seen + '/' + all.length + '）', () => {
+    return all.map(s => {
+      const sp = C.SPECIES[s]; const got = state.dex.has(s);
+      if (!got) return `<div class="mon-row"><canvas data-sp="?" width="64" height="64"></canvas><div class="info"><div class="nm">？？？</div><div style="color:#789">みはっけん</div></div></div>`;
+      return `<div class="mon-row"><canvas data-sp="${s}" width="64" height="64"></canvas><div class="info"><div class="nm">${sp.name} <span class="tag" style="background:${C.TYPE_COLOR[sp.type]}">${sp.type}</span></div><div style="font-size:0.78rem;color:#bcd">${sp.flavor}</div></div></div>`;
+    }).join('');
+  });
+  decorateMonCanvases();
+}
+function monRow(mon, active) {
+  const ratio = Math.max(0, mon.hp / mon.maxHp) * 100;
+  const col = ratio > 50 ? '#4caf50' : ratio > 20 ? '#f5a623' : '#e74c3c';
+  return `<div class="mon-row">
+    <canvas data-sp="${mon.species}" width="64" height="64"></canvas>
+    <div class="info">
+      <div class="nm">${mon.name} ${active ? '⚔️' : ''} <span class="tag" style="background:${C.TYPE_COLOR[mon.type]}">${mon.type}</span></div>
+      <div>Lv ${mon.level}　こうげき ${mon.atk} / ぼうぎょ ${mon.def} / すばやさ ${mon.spd}</div>
+      <div style="font-size:0.78rem;color:#9cc">わざ：${mon.moves.map(m => C.MOVES[m].name).join('・')}</div>
+      <div class="hpbar"><i style="width:${ratio}%;background:${col}"></i></div>
+      <div style="font-size:0.78rem">HP ${Math.max(0, mon.hp)}/${mon.maxHp}</div>
+    </div></div>`;
+}
+function renderModal(title, bodyFn) {
+  let modal = el('modal');
+  if (!modal) { modal = document.createElement('div'); modal.id = 'modal'; document.getElementById('wrap').appendChild(modal); }
+  modal.innerHTML = `<div class="panel"><h2>${title}</h2><div id="modalBody">${bodyFn()}</div><button class="bigbtn modal-close" type="button" style="font-size:0.95rem;padding:0.5rem 1.4rem" onclick="closeModal()">とじる</button></div>`;
+  modal.classList.remove('hidden');
+  return modal;
+}
+function closeModal() { const m = el('modal'); if (m) m.remove(); }
+function decorateMonCanvases() {
+  const m = el('modal'); if (!m) return;
+  m.querySelectorAll('canvas[data-sp]').forEach(cv => {
+    const sp = cv.getAttribute('data-sp'); const g = cv.getContext('2d');
+    if (sp && sp !== '?' && C.SPECIES[sp]) drawMonster(g, sp, 32, 34, 24, 'left');
+    else { g.fillStyle = '#1a3040'; g.fillRect(0, 0, 64, 64); g.fillStyle = '#456'; g.font = 'bold 30px sans-serif'; g.textAlign = 'center'; g.fillText('?', 32, 44); }
+  });
+}
+
+/* ====== 入力 ====== */
+function bindHold(btn, fn) {
+  let timer = null;
+  const start = e => { e.preventDefault(); fn(); timer = setInterval(fn, 160); };
+  const stop = () => { clearInterval(timer); timer = null; };
+  btn.addEventListener('touchstart', start, { passive: false });
+  btn.addEventListener('mousedown', start);
+  ['touchend', 'touchcancel', 'mouseup', 'mouseleave'].forEach(ev => btn.addEventListener(ev, stop));
+}
+const dpad = el('dpad');
+bindHold(dpad.querySelector('.up'), () => movePlayer(0, -1));
+bindHold(dpad.querySelector('.down'), () => movePlayer(0, 1));
+bindHold(dpad.querySelector('.left'), () => movePlayer(-1, 0));
+bindHold(dpad.querySelector('.right'), () => movePlayer(1, 0));
+dpad.querySelector('.a').addEventListener('click', e => { e.preventDefault(); if (state.scene === 'field') { /* 足元がドアなら回復 */ if (C.tileAt(grid, state.player.x, state.player.y) === T.DOOR) healAtCenter(); } });
+
+el('btnStart').onclick = startGame;
+el('btnParty').onclick = openParty;
+el('btnDex').onclick = openDex;
+
+window.addEventListener('keydown', e => {
+  audio();
+  if (state.scene === 'field') {
+    if (e.key === 'ArrowUp' || e.key === 'w') { movePlayer(0, -1); e.preventDefault(); }
+    else if (e.key === 'ArrowDown' || e.key === 's') { movePlayer(0, 1); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'a') { movePlayer(-1, 0); e.preventDefault(); }
+    else if (e.key === 'ArrowRight' || e.key === 'd') { movePlayer(1, 0); e.preventDefault(); }
+  } else if (state.scene === 'battle') {
+    if (e.key === ' ' || e.key === 'Enter' || e.key === 'z') { advanceMsg(); e.preventDefault(); }
+  } else if (state.scene === 'title') {
+    if (e.key === ' ' || e.key === 'Enter') { startGame(); e.preventDefault(); }
+  }
+}, { passive: false });
+
+/* ====== 起動 ====== */
+resize();
+requestAnimationFrame(loop);
+
+// テスト/スモーク用に公開
+window.startGame = startGame;
+window.chooseStarter = chooseStarter;
+window.movePlayer = movePlayer;
+window.beginBattle = beginBattle;
+window.startEncounter = startEncounter;
+window.playerMove = playerMove;
+window.throwBall = throwBall;
+window.tryRun = tryRun;
+window.doSwitch = doSwitch;
+window.advanceMsg = advanceMsg;
+window.openParty = openParty;
+window.openDex = openDex;
+window.closeModal = closeModal;
+window.isAwaiting = () => awaitingMsg;
+window.cmdMenuOpen = () => battle.active && !awaitingMsg && el('cmdArea').children.length > 0;
+window.MQState = state;
+window.MQBattle = battle;
+window.MQGrid = grid;
+</script>
+</body>
+</html>

@@ -4,7 +4,7 @@
 set -u
 cd "$(dirname "$0")/.." || exit 1
 
-games=(pet-care block-blast maze-number bank-game catch-thief rhythm-tap gem-hunt town-grow cat-hide yagoto-walk)
+games=(monster-quest pet-care block-blast maze-number bank-game catch-thief rhythm-tap gem-hunt town-grow cat-hide yagoto-walk)
 
 total_fail=0
 printf "%-14s %-10s %-10s\n" "GAME" "TEST" "SMOKE"
