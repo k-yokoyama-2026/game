@@ -59,40 +59,82 @@ h1 { text-align: center; font-size: 1.9rem; margin-bottom: 0.3rem; }
   <div>🟧 <b>デラックス版</b>＝あそびごたえ＆演出を強化した版</div>
   <div>⬜ オリジナル版＝最初に作った版を保存</div>
 </div>
-<div class="games" id="games"></div>
+<div class="games" id="games">
+  <div class="game-card" data-dir="monster-quest">
+    <div class="icon">👾</div><h2>モンスターたんけん<span class="badge">NEW</span></h2>
+    <p>草むらでモンスターと出会い、ボールで捕まえて図鑑を集めよう！</p>
+    <div class="btns"><a class="btn deluxe" href="games/monster-quest/">デラックス版</a><a class="btn orig" href="games/monster-quest/v1/">オリジナル版</a></div>
+  </div>
+  <div class="game-card" data-dir="pet-care">
+    <div class="icon">🐾</div><h2>ペットそだて<span class="badge">NEW</span></h2>
+    <p>ねこ・いぬ・ハムスターを育てよう！ガチャもあるよ</p>
+    <div class="btns"><a class="btn deluxe" href="games/pet-care/">デラックス版</a><a class="btn orig" href="games/pet-care/v1/">オリジナル版</a></div>
+  </div>
+  <div class="game-card" data-dir="block-blast" data-best-key="blockblast_best" data-best-kind="high" data-best-unit="点">
+    <div class="icon">🧩</div><h2>ブロックブラスト</h2>
+    <p>ブロックを置いて列を消そう！連鎖でハイスコア！</p>
+    <div class="btns"><a class="btn deluxe" href="games/block-blast/">デラックス版</a><a class="btn orig" href="games/block-blast/v1/">オリジナル版</a></div>
+  </div>
+  <div class="game-card" data-dir="yagoto-walk">
+    <div class="icon">🚶</div><h2>八事ウォーク</h2>
+    <p>八事日赤エリアを歩いてチェックポイントを集めよう！</p>
+    <div class="btns"><a class="btn deluxe" href="games/yagoto-walk/">デラックス版</a><a class="btn orig" href="games/yagoto-walk/v1/">オリジナル版</a></div>
+  </div>
+  <div class="game-card" data-dir="cat-hide" data-best-key="cathide_best" data-best-kind="high" data-best-unit="点">
+    <div class="icon">🐱</div><h2>にゃんこどこ？</h2>
+    <p>病院に行きたくないネコを探し出そう！</p>
+    <div class="btns"><a class="btn deluxe" href="games/cat-hide/">デラックス版</a><a class="btn orig" href="games/cat-hide/v1/">オリジナル版</a></div>
+  </div>
+  <div class="game-card" data-dir="maze-number" data-best-key="maze_best" data-best-kind="high" data-best-unit="">
+    <div class="icon">🔢</div><h2>数字迷路</h2>
+    <p>迷路で数字を集めろ！おに👹から逃げきろう</p>
+    <div class="btns"><a class="btn deluxe" href="games/maze-number/">デラックス版</a><a class="btn orig" href="games/maze-number/v1/">オリジナル版</a></div>
+  </div>
+  <div class="game-card" data-dir="bank-game" data-best-key="bank_best" data-best-kind="high" data-best-unit="">
+    <div class="icon">🏦</div><h2>銀行ゲーム</h2>
+    <p>金利を操って銀行を経営！取り付け騒ぎに注意</p>
+    <div class="btns"><a class="btn deluxe" href="games/bank-game/">デラックス版</a><a class="btn orig" href="games/bank-game/v1/">オリジナル版</a></div>
+  </div>
+  <div class="game-card" data-dir="catch-thief" data-best-key="catchThiefHigh" data-best-kind="high" data-best-unit="点">
+    <div class="icon">🦹</div><h2>泥棒をやっつけろ</h2>
+    <p>家に近づく泥棒をタップ！5レベルごとにボス</p>
+    <div class="btns"><a class="btn deluxe" href="games/catch-thief/">デラックス版</a><a class="btn orig" href="games/catch-thief/v1/">オリジナル版</a></div>
+  </div>
+  <div class="game-card" data-dir="rhythm-tap" data-best-key="rhythm_best" data-best-kind="high" data-best-unit="点">
+    <div class="icon">❤️</div><h2>リズムタップ</h2>
+    <p>ハートと星をタップ！フィーバーで高得点！</p>
+    <div class="btns"><a class="btn deluxe" href="games/rhythm-tap/">デラックス版</a><a class="btn orig" href="games/rhythm-tap/v1/">オリジナル版</a></div>
+  </div>
+  <div class="game-card" data-dir="gem-hunt" data-best-key="gem_best_time" data-best-kind="lowTime" data-best-unit="秒">
+    <div class="icon">💎</div><h2>キラめき探検隊</h2>
+    <p>宝石・星のかけらを集めて★3クリアを目指せ！</p>
+    <div class="btns"><a class="btn deluxe" href="games/gem-hunt/">デラックス版</a><a class="btn orig" href="games/gem-hunt/v1/">オリジナル版</a></div>
+  </div>
+  <div class="game-card" data-dir="town-grow" data-best-key="town_best" data-best-kind="high" data-best-unit="">
+    <div class="icon">🏡</div><h2>まちづくり物語</h2>
+    <p>最善の選択で連鎖ボーナス！町を発展させよう</p>
+    <div class="btns"><a class="btn deluxe" href="games/town-grow/">デラックス版</a><a class="btn orig" href="games/town-grow/v1/">オリジナル版</a></div>
+  </div>
+</div>
 <p class="foot">© k-yokoyama-2026 / すべて1ファイルのブラウザゲーム</p>
 
 <script src="games/_shared/scoreboard.js"></script>
 <script>
-const GAMES = [
-  { dir: 'monster-quest', icon: '👾', name: 'モンスターたんけん', desc: '草むらでモンスターと出会い、ボールで捕まえて図鑑を集めよう！', deluxe: true, fresh: true },
-  { dir: 'pet-care',    icon: '🐾', name: 'ペットそだて',     desc: 'ねこ・いぬ・ハムスターを育てよう！ガチャもあるよ', deluxe: true, fresh: true },
-  { dir: 'block-blast', icon: '🧩', name: 'ブロックブラスト', desc: 'ブロックを置いて列を消そう！連鎖でハイスコア！', best: { key: 'blockblast_best', kind: 'high', unit: '点' } },
-  { dir: 'yagoto-walk', icon: '🚶', name: '八事ウォーク',     desc: '八事日赤エリアを歩いてチェックポイントを集めよう！' },
-  { dir: 'cat-hide',    icon: '🐱', name: 'にゃんこどこ？',   desc: '病院に行きたくないネコを探し出そう！', best: { key: 'cathide_best', kind: 'high', unit: '点' } },
-  { dir: 'maze-number', icon: '🔢', name: '数字迷路',         desc: '迷路で数字を集めろ！おに👹から逃げきろう', best: { key: 'maze_best', kind: 'high', unit: '' } },
-  { dir: 'bank-game',   icon: '🏦', name: '銀行ゲーム',       desc: '金利を操って銀行を経営！取り付け騒ぎに注意', best: { key: 'bank_best', kind: 'high', unit: '' } },
-  { dir: 'catch-thief', icon: '🦹', name: '泥棒をやっつけろ', desc: '家に近づく泥棒をタップ！5レベルごとにボス', best: { key: 'catchThiefHigh', kind: 'high', unit: '点' } },
-  { dir: 'rhythm-tap',  icon: '❤️', name: 'リズムタップ',     desc: 'ハートと星をタップ！フィーバーで高得点！', best: { key: 'rhythm_best', kind: 'high', unit: '点' } },
-  { dir: 'gem-hunt',    icon: '💎', name: 'キラめき探検隊',   desc: '宝石・星のかけらを集めて★3クリアを目指せ！', best: { key: 'gem_best_time', kind: 'lowTime', unit: '秒' } },
-  { dir: 'town-grow',   icon: '🏡', name: 'まちづくり物語',   desc: '最善の選択で連鎖ボーナス！町を発展させよう', best: { key: 'town_best', kind: 'high', unit: '' } },
-];
-
-const wrap = document.getElementById('games');
-GAMES.forEach(g => {
-  const card = document.createElement('div');
-  card.className = 'game-card';
-  const bestText = g.best ? Scoreboard.readBest(window.localStorage, g.best) : null;
-  card.innerHTML =
-    `<div class="icon">${g.icon}</div>` +
-    `<h2>${g.name}${g.fresh ? '<span class="badge">NEW</span>' : ''}</h2>` +
-    `<p>${g.desc}</p>` +
-    (bestText ? `<div class="best">${bestText}</div>` : '') +
-    `<div class="btns">` +
-      `<a class="btn deluxe" href="games/${g.dir}/">デラックス版</a>` +
-      `<a class="btn orig" href="games/${g.dir}/v1/">オリジナル版</a>` +
-    `</div>`;
-  wrap.appendChild(card);
+// 一覧のカードは静的HTMLで描画済み（JS無効でも全ゲームが見える）。
+// JSが有効なときだけ、各カードに保存済みのベストスコアを差し込む。
+document.querySelectorAll('.game-card[data-best-key]').forEach(card => {
+  const cfg = {
+    key: card.dataset.bestKey,
+    kind: card.dataset.bestKind || 'high',
+    unit: card.dataset.bestUnit || '',
+  };
+  const bestText = Scoreboard.readBest(window.localStorage, cfg);
+  if (!bestText) return;
+  const div = document.createElement('div');
+  div.className = 'best';
+  div.textContent = bestText;
+  const btns = card.querySelector('.btns');
+  card.insertBefore(div, btns);
 });
 </script>
 </body>
