@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>テトリス</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { overflow: hidden; height: 100%; }
+body {
+  font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+  background: radial-gradient(circle at 50% 0%, #23305b, #0d1122 72%);
+  min-height: 100dvh;
+  color: #eef1ff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.8rem 0.6rem 1rem;
+  touch-action: none;
+  user-select: none;
+}
+
+#stage {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  max-width: 460px;
+  will-change: transform;
+}
+#stage.shake { animation: shk 0.4s cubic-bezier(.36,.07,.19,.97); }
+@keyframes shk {
+  0%,100% { transform: translate(0,0); }
+  20% { transform: translate(calc(var(--amp,4px) * -1), var(--amp,4px)); }
+  40% { transform: translate(var(--amp,4px), calc(var(--amp,4px) * -0.6)); }
+  60% { transform: translate(calc(var(--amp,4px) * -0.6), var(--amp,4px)); }
+  80% { transform: translate(var(--amp,3px), 0); }
+}
+
+/* ---- 盤面 ---- */
+#board {
+  position: relative;
+  width: min(58vw, 250px);
+  aspect-ratio: 10 / 20;
+  background: rgba(255,255,255,0.04);
+  border-radius: 10px;
+  padding: 4px;
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: repeat(20, 1fr);
+  gap: 2px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.45), inset 0 0 0 2px rgba(255,255,255,0.06);
+}
+.cell {
+  border-radius: 3px;
+  background: rgba(255,255,255,0.045);
+}
+.cell.filled { box-shadow: inset 0 -3px 0 rgba(0,0,0,0.28), inset 0 2px 2px rgba(255,255,255,0.28); }
+.cell.active { box-shadow: inset 0 -3px 0 rgba(0,0,0,0.28), inset 0 2px 2px rgba(255,255,255,0.35); }
+.cell.ghost { background: transparent !important; box-shadow: inset 0 0 0 2px rgba(255,255,255,0.28); }
+.cell.clearing { animation: pop 0.28s ease forwards; }
+@keyframes pop {
+  0% { transform: scale(1); filter: brightness(1); }
+  40% { transform: scale(1.15); filter: brightness(1.9); }
+  100% { transform: scale(0.2); opacity: 0; }
+}
+
+/* ---- サイドパネル ---- */
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  flex: 1;
+  min-width: 92px;
+  max-width: 130px;
+}
+.panel {
+  background: rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 0.5rem 0.6rem;
+}
+.panel .label { font-size: 0.62rem; letter-spacing: 0.12em; color: #9aa4d8; }
+.panel .val { font-size: 1.35rem; font-weight: 800; line-height: 1.15; }
+.panel .val.small { font-size: 1.05rem; }
+#best.val { color: #ffd45e; }
+#level.val { color: #7c9bff; }
+
+.mini {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 2px;
+  aspect-ratio: 4 / 2;
+  margin-top: 0.25rem;
+}
+.mini .mc { border-radius: 3px; background: transparent; }
+.mini .mc.on { box-shadow: inset 0 -2px 0 rgba(0,0,0,0.28), inset 0 2px 2px rgba(255,255,255,0.28); }
+
+/* ---- タッチ操作ボタン ---- */
+#pad {
+  width: 100%;
+  max-width: 460px;
+  margin-top: 0.7rem;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.5rem;
+}
+.pad-btn {
+  border: none;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.09);
+  color: #eef1ff;
+  font-size: 1.35rem;
+  padding: 0.75rem 0;
+  cursor: pointer;
+  box-shadow: 0 3px 0 rgba(0,0,0,0.25);
+  transition: transform 0.08s, background 0.1s;
+}
+.pad-btn:active { transform: translateY(2px); background: rgba(255,255,255,0.18); }
+.pad-btn.drop { background: linear-gradient(180deg,#7c9bff,#5a6fe0); box-shadow: 0 3px 0 rgba(60,70,180,0.6); }
+.hint {
+  width: 100%; max-width: 460px; text-align: center;
+  margin-top: 0.55rem; font-size: 0.72rem; color: #7f89bb;
+}
+
+/* ---- コンボ / オーバーレイ ---- */
+#combo {
+  position: fixed; top: 34%; left: 50%;
+  transform: translate(-50%,-50%) scale(0.4);
+  font-size: 2rem; font-weight: 900; color: #ffd45e;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.6);
+  opacity: 0; pointer-events: none; z-index: 60; white-space: nowrap;
+}
+#combo.show { animation: combo 0.9s ease forwards; }
+@keyframes combo {
+  0% { opacity: 0; transform: translate(-50%,-50%) scale(0.4); }
+  25% { opacity: 1; transform: translate(-50%,-50%) scale(1.15); }
+  70% { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%,-62%) scale(1); }
+}
+
+#over {
+  position: fixed; inset: 0;
+  background: rgba(8,10,25,0.86);
+  display: none; flex-direction: column;
+  align-items: center; justify-content: center; gap: 1rem;
+  z-index: 100; backdrop-filter: blur(4px);
+}
+#over.show { display: flex; }
+#over h2 { font-size: 2rem; }
+#over .fs { font-size: 1.05rem; color: #9aa4d8; }
+#over .fs b { color: #ffd45e; font-size: 1.6rem; }
+#over .record { font-size: 1.2rem; font-weight: 800; color: #ffd45e; animation: recordPop 0.6s ease; }
+@keyframes recordPop { 0%{ transform: scale(0.3); opacity: 0; } 60%{ transform: scale(1.2); } 100%{ transform: scale(1); opacity: 1; } }
+
+#title {
+  position: fixed; inset: 0; z-index: 110;
+  background: radial-gradient(circle at 50% 30%, #23305b, #0b0f1e 78%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1rem; text-align: center; padding: 2rem;
+}
+#title.hide { display: none; }
+#title h1 { font-size: 2.6rem; letter-spacing: 0.05em; }
+#title .how { max-width: 340px; color: #9aa4d8; font-size: 0.9rem; line-height: 1.9; background: rgba(255,255,255,0.06); border-radius: 1rem; padding: 1rem 1.2rem; }
+#title .how b { color: #7c9bff; }
+button.btn {
+  margin-top: 0.4rem; padding: 0.8rem 2.2rem;
+  font-size: 1.1rem; font-weight: 700; border: none; border-radius: 999px;
+  background: linear-gradient(180deg,#7c9bff,#5a6fe0); color: #fff; cursor: pointer;
+  box-shadow: 0 6px 16px rgba(90,105,224,0.5);
+}
+button.btn:active { transform: translateY(2px); }
+.home { margin-top: 1rem; font-size: 0.85rem; color: #9aa4d8; text-decoration: none; }
+.paused { position: fixed; top: 46%; left: 50%; transform: translate(-50%,-50%); font-size: 1.6rem; font-weight: 800; color: #ffd45e; z-index: 90; display: none; }
+.paused.show { display: block; }
+</style>
+<link rel="stylesheet" href="../_shared/a11y.css">
+</head>
+<body>
+
+<div id="stage">
+  <div id="board"></div>
+  <div class="side">
+    <div class="panel"><div class="label">SCORE</div><div class="val small" id="score">0</div></div>
+    <div class="panel"><div class="label">BEST</div><div class="val small" id="best">0</div></div>
+    <div class="panel"><div class="label">LEVEL</div><div class="val" id="level">1</div></div>
+    <div class="panel"><div class="label">LINES</div><div class="val small" id="lines">0</div></div>
+    <div class="panel"><div class="label">NEXT</div><div class="mini" id="next"></div></div>
+    <div class="panel"><div class="label">HOLD</div><div class="mini" id="hold"></div></div>
+  </div>
+</div>
+
+<div id="pad">
+  <button class="pad-btn" id="bLeft" aria-label="左へ">◀</button>
+  <button class="pad-btn" id="bRot" aria-label="回転">⟳</button>
+  <button class="pad-btn" id="bDown" aria-label="下へ">▼</button>
+  <button class="pad-btn drop" id="bDrop" aria-label="一気に落とす">⤓</button>
+  <button class="pad-btn" id="bRight" aria-label="右へ">▶</button>
+</div>
+<div class="hint">キーボード: ←→ 移動 / ↑ 回転 / ↓ ソフトドロップ / Space ハードドロップ / C ホールド / P 一時停止</div>
+
+<div id="combo"></div>
+<div class="paused" id="paused">⏸ 一時停止</div>
+
+<div id="over">
+  <h2>ゲームオーバー</h2>
+  <div class="record" id="recordMsg" style="display:none">🎉 新記録！</div>
+  <div class="fs">スコア <b id="finalScore">0</b></div>
+  <button class="btn" id="restart">もう一度</button>
+</div>
+
+<div id="title">
+  <h1>🧱 テトリス</h1>
+  <div class="how">
+    ミノを <b>左右に動かして回転</b>させ、<br>
+    ヨコ1列をすきまなく埋めると <b>消えて得点</b>！<br>
+    4列同時消しは <b>テトリス</b>で高得点。<br>
+    <b>ホールド</b>で1個ストックできるよ。<br>
+    上まで積み上がったら ゲームオーバー。
+  </div>
+  <button class="btn" id="startBtn">スタート</button>
+</div>
+
+<a class="home" href="../../">← ゲーム一覧へ</a>
+
+<script src="../_shared/audio.js"></script>
+<script src="core.js"></script>
+<script>
+const T = TetrisCore;
+const COLS = T.COLS, ROWS = T.ROWS;
+const boardEl = document.getElementById('board');
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
+const levelEl = document.getElementById('level');
+const linesEl = document.getElementById('lines');
+const nextEl = document.getElementById('next');
+const holdEl = document.getElementById('hold');
+const comboEl = document.getElementById('combo');
+const stage = document.getElementById('stage');
+const pausedEl = document.getElementById('paused');
+
+let grid, cur, bag, nextType, holdType, canHold;
+let score, best, lines, level, streak;
+let running = false, paused = false, gameOver = false;
+let cells = [];
+
+best = parseInt(localStorage.getItem('tetris_best') || '0', 10);
+bestEl.textContent = best;
+
+// ---- 音 ----
+function beep(freq, dur, type, gain, when){ AudioFX.tone(freq, dur, type, gain, when); }
+function sndMove(){ beep(220, 0.03, 'square', 0.05); }
+function sndRotate(){ beep(330, 0.04, 'triangle', 0.06); }
+function sndLock(){ beep(150, 0.06, 'triangle', 0.10); }
+function sndClear(n){
+  const scale = [0,4,7,12,16];
+  for(let i=0;i<Math.min(n+1,5);i++) beep(440*Math.pow(2, scale[i]/12), 0.14, n>=4?'sawtooth':'square', 0.13, i*0.05);
+  beep(70, 0.2, 'sine', 0.28);
+  if(n>=4) beep(1760, 0.3, 'sine', 0.09, 0.05);
+}
+function sndGameOver(){ [392,330,262,175].forEach((f,i)=> beep(f,0.45,'triangle',0.24,i*0.2)); beep(98,1.1,'sine',0.3,0.1); }
+function vibrate(p){ if(navigator.vibrate){ try{ navigator.vibrate(p); }catch(e){} } }
+
+// ---- 盤面の生成 ----
+function buildBoard(){
+  boardEl.innerHTML = '';
+  cells = [];
+  for(let r=0;r<ROWS;r++){
+    cells[r] = [];
+    for(let c=0;c<COLS;c++){
+      const d = document.createElement('div');
+      d.className = 'cell';
+      boardEl.appendChild(d);
+      cells[r][c] = d;
+    }
+  }
+}
+
+function nextFromBag(){
+  if(!bag || bag.length === 0) bag = T.newBag(Math.random);
+  return bag.shift();
+}
+
+function spawnNext(){
+  cur = T.spawn(nextType);
+  nextType = nextFromBag();
+  canHold = true;
+  renderMini(nextEl, nextType);
+  if(T.collides(grid, cur)){ endGame(); return false; }
+  return true;
+}
+
+function newGame(){
+  grid = T.makeGrid();
+  bag = T.newBag(Math.random);
+  score = 0; lines = 0; level = 1; streak = 0;
+  holdType = null; canHold = true;
+  gameOver = false; paused = false;
+  nextType = nextFromBag();
+  buildBoard();
+  renderMini(holdEl, null);
+  document.getElementById('over').classList.remove('show');
+  pausedEl.classList.remove('show');
+  spawnNext();
+  updateStats();
+  render();
+  running = true;
+  lastTime = 0; acc = 0;
+  requestAnimationFrame(loop);
+}
+
+// ---- 描画 ----
+function render(){
+  // 盤面
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const d = cells[r][c];
+    d.className = 'cell';
+    d.style.background = '';
+    if(grid[r][c]){ d.classList.add('filled'); d.style.background = grid[r][c]; }
+  }
+  if(!cur) return;
+  // ゴースト
+  const gh = T.ghost(grid, cur);
+  for(const [r,c] of T.blocks(gh)){
+    if(r>=0 && r<ROWS && c>=0 && c<COLS && !grid[r][c]) cells[r][c].classList.add('ghost');
+  }
+  // 現在のミノ
+  const color = T.COLORS[cur.type];
+  for(const [r,c] of T.blocks(cur)){
+    if(r>=0 && r<ROWS && c>=0 && c<COLS){
+      const d = cells[r][c];
+      d.classList.remove('ghost');
+      d.classList.add('active');
+      d.style.background = color;
+    }
+  }
+}
+
+function renderMini(container, type){
+  container.innerHTML = '';
+  const set = new Set();
+  if(type){
+    // 4x2 のミニ表示用に、各ミノの上2行相当を描く
+    const shape = T.SHAPES[type][0];
+    for(const [r,c] of shape) set.add(r+','+c);
+  }
+  for(let r=0;r<2;r++)for(let c=0;c<4;c++){
+    const d = document.createElement('div');
+    d.className = 'mc';
+    if(type && set.has(r+','+c)){ d.classList.add('on'); d.style.background = T.COLORS[type]; }
+    container.appendChild(d);
+  }
+}
+
+function updateStats(){
+  scoreEl.textContent = score;
+  linesEl.textContent = lines;
+  levelEl.textContent = level;
+  levelEl.style.color = `hsl(${220 + (level-1)*14},80%,72%)`;
+}
+
+// ---- ゲーム進行 ----
+let lastTime = 0, acc = 0;
+function loop(t){
+  if(!running) return;
+  if(!paused && !gameOver){
+    if(!lastTime) lastTime = t;
+    acc += t - lastTime;
+    const iv = T.dropInterval(level);
+    while(acc >= iv){ acc -= iv; step(); }
+  }
+  lastTime = t;
+  requestAnimationFrame(loop);
+}
+
+// 自然落下1コマ
+function step(){
+  const down = T.tryMove(grid, cur, 1, 0);
+  if(down){ cur = down; render(); }
+  else { lockPiece(); }
+}
+
+function move(dc){
+  if(paused || gameOver || !cur) return;
+  const np = T.tryMove(grid, cur, 0, dc);
+  if(np){ cur = np; render(); sndMove(); }
+}
+
+function softDrop(){
+  if(paused || gameOver || !cur) return;
+  const np = T.tryMove(grid, cur, 1, 0);
+  if(np){ cur = np; score += 1; updateStats(); render(); acc = 0; }
+  else lockPiece();
+}
+
+function rotate(dir){
+  if(paused || gameOver || !cur) return;
+  const np = T.tryRotate(grid, cur, dir);
+  if(np){ cur = np; render(); sndRotate(); }
+}
+
+function hardDrop(){
+  if(paused || gameOver || !cur) return;
+  const gh = T.ghost(grid, cur);
+  score += (gh.r - cur.r) * 2; // ハードドロップは1マス2点
+  cur = gh;
+  render();
+  lockPiece();
+}
+
+function hold(){
+  if(paused || gameOver || !cur || !canHold) return;
+  const t = cur.type;
+  if(holdType){
+    cur = T.spawn(holdType);
+    holdType = t;
+    if(T.collides(grid, cur)){ endGame(); return; }
+  } else {
+    holdType = t;
+    if(!spawnNext()) return;
+  }
+  canHold = false;
+  renderMini(holdEl, holdType);
+  render();
+}
+
+function lockPiece(){
+  grid = T.merge(grid, cur);
+  sndLock();
+  vibrate(10);
+  const res = T.clearLines(grid);
+  if(res.count > 0){
+    // 消える行をアニメ表示
+    res.rows.forEach(r => { for(let c=0;c<COLS;c++) cells[r][c].classList.add('clearing'); });
+    streak++;
+    lines += res.count;
+    level = T.levelFor(lines);
+    score += T.scoreForLines(res.count, level);
+    if(res.count >= 2 || streak >= 2) showCombo(res.count, streak);
+    shake(res.count * 3 + level);
+    sndClear(res.count);
+    vibrate(Math.min(res.count * 40 + level * 8, 300));
+    grid = res.grid;
+    updateStats();
+    // アニメ後に盤面を描き直す
+    setTimeout(() => { cur = null; render(); }, 260);
+  } else {
+    streak = 0;
+  }
+  cur = null;
+  spawnNext();
+  render();
+  updateStats();
+  saveBest();
+}
+
+function saveBest(){
+  if(score > best){ best = score; bestEl.textContent = best; localStorage.setItem('tetris_best', best); }
+}
+
+function showCombo(count, streak){
+  const mark = count >= 4 ? '🔥' : (streak >= 3 ? '✨' : '⭐');
+  let txt = '';
+  if(count >= 4) txt = 'テトリス！';
+  else if(count >= 2) txt = count + '列消し！';
+  if(streak >= 2) txt += (txt ? ' ' : '') + streak + 'れんさ';
+  comboEl.textContent = `${mark} ${txt.trim()} ${mark}`;
+  comboEl.classList.remove('show'); void comboEl.offsetWidth; comboEl.classList.add('show');
+}
+
+function shake(power){
+  stage.style.setProperty('--amp', Math.min(power, 14) + 'px');
+  stage.classList.remove('shake'); void stage.offsetWidth; stage.classList.add('shake');
+}
+
+function togglePause(){
+  if(gameOver || !running) return;
+  paused = !paused;
+  pausedEl.classList.toggle('show', paused);
+  if(!paused){ lastTime = 0; }
+}
+
+function endGame(){
+  gameOver = true;
+  running = false;
+  saveBest();
+  const isRecord = score >= best && score > 0;
+  document.getElementById('recordMsg').style.display = isRecord ? 'block' : 'none';
+  document.getElementById('finalScore').textContent = score;
+  document.getElementById('over').classList.add('show');
+  sndGameOver();
+  vibrate([0,120,60,120,60,260]);
+}
+
+// ---- 入力 ----
+document.addEventListener('keydown', e => {
+  if(!running && e.key !== 'Enter') return;
+  switch(e.key){
+    case 'ArrowLeft': move(-1); e.preventDefault(); break;
+    case 'ArrowRight': move(1); e.preventDefault(); break;
+    case 'ArrowDown': softDrop(); e.preventDefault(); break;
+    case 'ArrowUp': case 'x': case 'X': rotate(1); e.preventDefault(); break;
+    case 'z': case 'Z': rotate(-1); e.preventDefault(); break;
+    case ' ': hardDrop(); e.preventDefault(); break;
+    case 'c': case 'C': hold(); e.preventDefault(); break;
+    case 'p': case 'P': togglePause(); e.preventDefault(); break;
+  }
+});
+
+function bindHold(btn, fn){
+  let timer = null, rep = null;
+  const start = e => {
+    e.preventDefault();
+    AudioFX.unlock();
+    fn();
+    // 長押しでリピート（移動・ソフトドロップ向け）
+    timer = setTimeout(() => { rep = setInterval(fn, 70); }, 220);
+  };
+  const stop = () => { clearTimeout(timer); clearInterval(rep); timer = rep = null; };
+  btn.addEventListener('pointerdown', start);
+  btn.addEventListener('pointerup', stop);
+  btn.addEventListener('pointerleave', stop);
+  btn.addEventListener('pointercancel', stop);
+}
+function bindTap(btn, fn){
+  btn.addEventListener('pointerdown', e => { e.preventDefault(); AudioFX.unlock(); fn(); });
+}
+bindHold(document.getElementById('bLeft'), () => move(-1));
+bindHold(document.getElementById('bRight'), () => move(1));
+bindHold(document.getElementById('bDown'), () => softDrop());
+bindTap(document.getElementById('bRot'), () => rotate(1));
+bindTap(document.getElementById('bDrop'), () => hardDrop());
+
+// スワイプ操作（盤面上）
+let sw = null;
+boardEl.addEventListener('pointerdown', e => { sw = { x: e.clientX, y: e.clientY, t: Date.now(), moved: false }; });
+boardEl.addEventListener('pointerup', e => {
+  if(!sw) return;
+  const dx = e.clientX - sw.x, dy = e.clientY - sw.y, dt = Date.now() - sw.t;
+  if(Math.abs(dx) < 16 && Math.abs(dy) < 16 && dt < 250){ rotate(1); } // タップ=回転
+  else if(dy > 40 && Math.abs(dy) > Math.abs(dx)){ hardDrop(); }        // 下スワイプ=落下
+  sw = null;
+});
+
+document.getElementById('restart').addEventListener('click', () => newGame());
+document.getElementById('startBtn').addEventListener('click', () => {
+  AudioFX.unlock();
+  document.getElementById('title').classList.add('hide');
+  newGame();
+});
+
+// タイトルを重ねたまま、盤だけ先に描いておく
+buildBoard();
+AudioFX.mountButton();
+</script>
+</body>
+</html>
