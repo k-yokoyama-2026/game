@@ -121,84 +121,6 @@
     const ms = legalMoves(s);
     return ms.find(m => !m.drop && Math.abs(s.board[m.from]) === LION) || ms.find(m => !m.drop) || ms[0];
   }
-  /* ---------- 詰み探索（田中 2009 の詰み。余詰のある特別問題で「詰む手ならどれでも正解」にするため） ----------
-   * nAtt(p): 攻め方の手番 p から、王手の連続で詰むまでの手数（最後の王手まで。詰まなければ INF）
-   * mDef(s): 王手のかかった受け方の手番 s の手数（詰み上がりなら 0）
-   * 受け方がライオンを取らせる応手は数えない（その場で取れば勝ちなので）。bound までしか探さない。 */
-  const INF = 1e9, BOUND = 23;
-  const memoA = new Map(), memoD = new Map();
-  function keyOf(s) {
-    // 左右の鏡像は同じ局面として扱う
-    const b = s.board, m = [];
-    for (let r = 0; r < 4; r++) m.push(b[r * 3 + 2], b[r * 3 + 1], b[r * 3]);
-    const a = b.join(','), c = m.join(',');
-    return (a < c ? a : c) + '|' + s.handA.join('') + s.handB.join('') + s.turn;
-  }
-  function memo(tab, s, bound, fn) {
-    const k = keyOf(s), hit = tab.get(k);
-    if (hit && (hit.v < INF || hit.b >= bound)) return hit.v <= bound ? hit.v : INF;
-    const v = fn();
-    if (v < INF || !hit || hit.b < bound) tab.set(k, { v, b: bound });
-    return v;
-  }
-  function canCaptureLion(s) { const sq = lionSquare(s.board, -s.turn); return sq >= 0 && attacks(s.board, sq, s.turn); }
-  function nAtt(p, bound) {
-    if (bound === undefined) bound = BOUND;
-    if (bound < 1) return INF;
-    return memo(memoA, p, bound, () => {
-      let best = INF;
-      for (const m of legalMoves(p)) {
-        const r = applyMove(p, m);
-        if (r.winner || !inCheck(r.state)) continue;
-        const v = mDef(r.state, Math.min(bound - 1, best - 2));
-        if (v + 1 < best) best = v + 1;
-      }
-      return best <= bound ? best : INF;
-    });
-  }
-  function mDef(s, bound) {
-    if (bound === undefined) bound = BOUND - 1;
-    if (bound < 0) return INF;
-    if (isMateNet(s)) return 0;
-    return memo(memoD, s, bound, () => {
-      let mx = -1;
-      for (const m of legalMoves(s)) {
-        const r = applyMove(s, m);
-        if (r.winner) return INF;                 // 受け方がライオンを取った／トライした
-        if (canCaptureLion(r.state)) continue;    // 攻め方がすぐライオンを取れる応手は数えない
-        const v = nAtt(r.state, bound - 1);
-        if (v >= INF) return INF;
-        if (v > mx) mx = v;
-      }
-      if (mx < 0) return INF;
-      return mx + 1 <= bound ? mx + 1 : INF;
-    });
-  }
-  // 受け方のいちばん長く逃げる応手（prefer と同じ手が最善なら prefer を選ぶ）
-  function bestReply(s, prefer) {
-    const v = mDef(s);
-    let first = null;
-    for (const m of legalMoves(s)) {
-      const r = applyMove(s, m);
-      if (r.winner || canCaptureLion(r.state)) continue;
-      if (nAtt(r.state) !== v - 1) continue;
-      if (prefer && sameMove(m, prefer)) return m;
-      if (!first) first = m;
-    }
-    return first;
-  }
-  // 攻め方のいちばん早く詰む王手（prefer が最短なら prefer）
-  function bestAttack(p, prefer) {
-    const n = nAtt(p);
-    let first = null;
-    for (const m of legalMoves(p)) {
-      const r = applyMove(p, m);
-      if (r.winner || !inCheck(r.state) || mDef(r.state) !== n - 1) continue;
-      if (prefer && sameMove(m, prefer)) return m;
-      if (!first) first = m;
-    }
-    return first;
-  }
   function perft(s, depth) {
     if (depth === 0) return 1;
     let n = 0;
@@ -214,16 +136,14 @@
     return { board: pz.start.board.slice(), handA: pz.start.handA.slice(), handB: pz.start.handB.slice(), turn: 1 };
   }
   function newSession(pz) {
-    return { pz, state: startState(pz), step: 0, phase: 'attack', mistakes: 0, hints: 0, history: [], onLine: true };
+    return { pz, state: startState(pz), step: 0, phase: 'attack', mistakes: 0, hints: 0, history: [] };
   }
   // あと何手（攻め方の手数，田中の数え方）
   function movesLeft(ss) {
-    if (ss.phase === 'finish' || ss.phase === 'solved') return 0;
-    if (ss.pz.free && !ss.onLine) return nAtt(ss.state);
+    if (ss.phase === 'finish') return 0;
     return ss.pz.line.length - ss.step;
   }
   function correctMove(ss) {
-    if (ss.phase === 'attack' && ss.pz.free && !ss.onLine) return bestAttack(ss.state);
     if (ss.phase === 'attack') return ss.pz.line[ss.step];
     if (ss.phase === 'finish') return legalMoves(ss.state).find(m => applyMove(ss.state, m).winner === 1) || null;
     return null;
@@ -244,7 +164,6 @@
     }
     if (ss.phase === 'finish') { ss.mistakes++; return { kind: 'wrong', needWin: true }; }
     if (!inCheck(r.state)) { ss.mistakes++; return { kind: 'notCheck' }; }
-    if (ss.pz.free) return playFree(ss, m, r);
     // 最後の王手（あと1手）は、詰み上がりになる手ならどれでも正解（最終手余詰は詰めしょうぎでも許される）
     const lastCheck = ss.step === ss.pz.line.length - 1;
     const isLine = sameMove(m, ss.pz.line[ss.step]);
@@ -257,28 +176,6 @@
     const rr = applyMove(ss.state, reply);
     ss.state = rr.state;
     return { kind: 'ok', reply, replyState: rr.state, finish: ss.phase === 'finish' };
-  }
-  // 特別問題（余詰あり）: 詰む王手ならどれでも正解。受け方はいちばん長く逃げる
-  function playFree(ss, m, r) {
-    const v = mDef(r.state);
-    if (v >= INF) { ss.mistakes++; return { kind: 'wrong' }; }
-    const onLineMove = ss.onLine && sameMove(m, ss.pz.line[ss.step]);
-    ss.history.push(clone(ss.state));
-    ss.state = r.state;
-    let reply;
-    if (v === 0) {
-      reply = onLineMove && ss.step === ss.pz.line.length - 1 ? ss.pz.reply : pickReply(ss.state);
-      ss.phase = 'finish';
-      ss.step = ss.pz.line.length;
-    } else {
-      const want = onLineMove ? ss.pz.line[ss.step + 1] : null;
-      reply = bestReply(ss.state, want);
-      if (onLineMove && sameMove(reply, want)) ss.step += 2; else ss.onLine = false;
-    }
-    if (!onLineMove) ss.onLine = false;
-    const rr = applyMove(ss.state, reply);
-    ss.state = rr.state;
-    return { kind: 'ok', reply, replyState: rr.state, finish: ss.phase === 'finish', alt: !onLineMove };
   }
   function useHint(ss) { ss.hints++; return correctMove(ss); }
   // ★: まちがい・ヒントなしで3、合計2回まで2、それ以上1
@@ -295,7 +192,6 @@
     { level: 4, name: 'きりん級', icon: '🦒', moves: '7〜9手詰め', who: '中学生・大人', color: '#43a047' },
     { level: 5, name: 'ライオン級', icon: '🦁', moves: '11〜13手詰め', who: '将棋が得意な人', color: '#e53935' },
     { level: 6, name: '名人級', icon: '👑', moves: '15〜19手詰め', who: '上級者（大人でもむずかしい）', color: '#37474f' },
-    { level: 7, name: '特別問題', icon: '🏆', moves: '21〜23手詰め', who: 'ちょう上級。いちばん長い詰み（答えが1とおりではない）', color: '#1a237e' },
   ];
 
   /* ---------- 記録 ---------- */
@@ -319,7 +215,6 @@
   const api = {
     LION, KIRIN, ZOU, HIYOKO, NIWATORI, NAME, EMOJI, HAND_PIECES, INITIAL, LEVELS,
     clone, attacks, legalMoves, sameMove, applyMove, inCheck, isMateNet, pickReply, perft,
-    INF, nAtt, mDef, bestReply, bestAttack,
     newSession, startState, movesLeft, correctMove, play, useHint, stars,
     recordResult, totalStars, levelProgress, parseRecord,
   };

@@ -118,7 +118,7 @@ button { font-family: inherit; }
   <div class="total" id="totalStars"></div>
   <div class="levels" id="levels"></div>
   <p class="credit">ルールは「どうぶつしょうぎ」（北尾まどか 考案）にしたがっています。<br>
-  問題は、すべての局面を調べた完全解析から選びました。3手詰め以上は、さいごの王手のほかは答えが1とおりしかないことを、コンピュータで確かめてあります。</p>
+  問題は、すべての局面を調べた完全解析から選びました。3〜19手詰めは、さいごの王手のほかは答えが1とおりしかないことを、コンピュータで確かめてあります。特別問題（21〜23手詰め）は答えが1とおりではありません。</p>
 </div>
 
 <!-- 問題の一覧 -->
@@ -234,10 +234,11 @@ function renderHome() {
     const pg = C.levelProgress(rec, PUZZLES, L.level);
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'lv'; b.style.borderLeftColor = L.color;
-    const steps = [1, 2, 3, 4, 5, 6].map(i => '<i class="' + (i <= L.level ? 'on' : '') + '"></i>').join('');
+    const N = C.LEVELS.length;
+    const steps = C.LEVELS.map(x => '<i class="' + (x.level <= L.level ? 'on' : '') + '"></i>').join('');
     b.innerHTML = '<span class="ic">' + L.icon + '</span><span><span class="nm">' + L.name + '</span>' +
       '<span class="ds"> ' + L.moves + '</span><br><span class="ds">めやす: ' + L.who + '</span>' +
-      '<span class="steps" aria-label="むずかしさ ' + L.level + ' / 6">' + steps + '</span></span>' +
+      '<span class="steps" aria-label="むずかしさ ' + L.level + ' / ' + N + '">' + steps + '</span></span>' +
       '<span class="pg">' + pg.solved + ' / ' + pg.total + ' 問<br><b>★' + pg.stars + '</b> / ' + pg.maxStars + '</span>';
     b.onclick = () => { sfx('tap'); openLevel(L.level); };
     box.appendChild(b);
@@ -250,13 +251,14 @@ function openLevel(level) {
   curLevel = level;
   const L = C.LEVELS.find(x => x.level === level);
   $('levelTitle').textContent = L.icon + ' ' + L.name;
-  $('levelDesc').textContent = L.moves + '・めやす: ' + L.who + '（むずかしさ ' + L.level + ' / 6）';
+  $('levelDesc').textContent = L.moves + '・めやす: ' + L.who + '（むずかしさ ' + L.level + ' / ' + C.LEVELS.length + '）' +
+    (level === 7 ? '　完全解析でいちばん長い詰み。作者の手順のほかにも詰む手（余詰め）があるので、詰む王手ならどれでも正解です。' : '');
   const box = $('plist'); box.innerHTML = '';
   PUZZLES.filter(p => p.level === level).forEach((p, i) => {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'pbtn';
     const st = rec[p.id] || 0;
-    b.innerHTML = '第' + (i + 1) + '問<small>' + p.n + '手詰め' + (p.hirameki ? ' ✨' : '') + '</small>' +
+    b.innerHTML = '第' + (i + 1) + '問<small>' + p.n + '手詰め' + (p.hirameki ? ' ✨' : '') + (p.fig10 ? ' 📜' : '') + '</small>' +
       '<span class="st">' + (st ? starText(st) : '') + '</span>';
     b.onclick = () => { sfx('tap'); startPuzzle(p.id); };
     box.appendChild(b);
@@ -272,8 +274,11 @@ function startPuzzle(id) {
   sel = null; busy = false; hintMove = null; lastMove = null; viewState = null;
   const list = PUZZLES.filter(p => p.level === pz.level);
   const L = C.LEVELS.find(x => x.level === pz.level);
-  $('pTitle').innerHTML = L.icon + ' ' + L.name + ' 第' + (list.indexOf(pz) + 1) + '問' + (pz.hirameki ? '<span class="badge">✨ひらめき</span>' : '');
-  setMsg(pz.n === 1 ? '王手をかけよう！どうにげても、つぎにライオンがとれる手があるよ。' : '王手をかけつづけて、ライオンをつかまえよう！', '');
+  $('pTitle').innerHTML = L.icon + ' ' + L.name + ' 第' + (list.indexOf(pz) + 1) + '問' + (pz.hirameki ? '<span class="badge">✨ひらめき</span>' : '') +
+    (pz.free ? '<span class="badge" style="background:#1a237e">答えは1つじゃない</span>' : '');
+  setMsg(pz.fig10 ? '📜 田中哲朗さんの論文（2009）にのっている23手詰めです。詰む王手ならどれでも正解！' :
+    pz.free ? '詰む王手ならどれでも正解。あいてはいちばん長くにげます。' :
+    pz.n === 1 ? '王手をかけよう！どうにげても、つぎにライオンがとれる手があるよ。' : '王手をかけつづけて、ライオンをつかまえよう！', '');
   $('clear').classList.remove('show');
   show('play');
   render();
@@ -300,7 +305,7 @@ function render() {
   const pz = session.pz;
   const left = C.movesLeft(session);
   $('pLeft').textContent = session.phase === 'solved' ? 'クリア！' :
-    session.phase === 'finish' ? 'さいご！ライオンをつかまえよう' : 'あと ' + left + ' 手で詰み（' + pz.n + '手詰め）';
+    session.phase === 'finish' ? 'さいご！ライオンをつかまえよう' : busy ? '…' : 'あと ' + left + ' 手で詰み（' + pz.n + '手詰め）';
   const legal = session.phase === 'solved' || busy ? [] : C.legalMoves(s);
   const dests = new Set();
   if (sel) legal.forEach(m => {
@@ -383,7 +388,7 @@ function tryMove(m) {
       busy = false; viewState = null; lastMove = r.reply;
       render();
       setMsg(r.finish ? 'もうにげられない！ ライオンをつかまえよう！' :
-        'いいね！ あと ' + C.movesLeft(session) + ' 手。王手をつづけよう。', 'good');
+        (r.alt ? 'それでも詰むよ！（作者とはべつの手順）' : 'いいね！') + ' あと ' + C.movesLeft(session) + ' 手。王手をつづけよう。', 'good');
     }, 650);
     return;
   }

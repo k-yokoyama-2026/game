@@ -11,7 +11,7 @@ const C = ctx.TsumeCore, P = ctx.TSUME_PUZZLES;
 console.log('# 起動');
 ok(typeof C === 'object', 'コア読み込み');
 ok(Array.isArray(P) && P.length > 0, '問題集読み込み');
-ok(doc.getElementById('levels').children.length === 6, 'ホームに6つの級');
+ok(doc.getElementById('levels').children.length === C.LEVELS.length, `ホームに${C.LEVELS.length}つの級`);
 ok(/★|あつめた/.test(doc.getElementById('totalStars').textContent), '★の合計を表示');
 
 console.log('# 級→問題一覧');
@@ -73,9 +73,9 @@ ok(!threw && allClear, `全 ${P.length} 問をタップ操作でクリア`);
 
 console.log('# 画面遷移');
 threw = false;
-try { ctx.renderRules(); ctx.showHome(); ctx.openLevel(6); } catch (e) { threw = true; console.error(e); }
+try { ctx.renderRules(); ctx.showHome(); ctx.openLevel(6); ctx.openLevel(7); } catch (e) { threw = true; console.error(e); }
 ok(!threw, 'あそびかた・ホーム・名人級へ移れる');
-ok(doc.getElementById('lvTable').children.length === 6, 'あそびかたに級の表');
+ok(doc.getElementById('lvTable').children.length === C.LEVELS.length, 'あそびかたに級の表');
 
 console.log('\n=====================================');
 console.log(`  SMOKE PASS: ${pass}  FAIL: ${fail}`);
