@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>どうぶつ詰めしょうぎ</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+  background: #f3ecdf; color: #3a3226;
+  min-height: 100dvh; touch-action: manipulation;
+  user-select: none; -webkit-user-select: none;
+}
+.screen { display: none; max-width: 520px; margin: 0 auto; padding: 1rem 1rem 4.5rem; }
+.screen.show { display: block; }
+h1 { text-align: center; font-size: 1.7rem; margin: 0.6rem 0 0.2rem; }
+.sub { text-align: center; color: #8a7f6c; font-size: 0.85rem; margin-bottom: 1rem; }
+.total { text-align: center; font-weight: 800; color: #d68910; margin-bottom: 0.8rem; }
+button { font-family: inherit; }
+.btn {
+  border: none; border-radius: 0.8rem; padding: 0.6rem 1rem; font-size: 0.95rem; font-weight: 700;
+  background: #efe6d6; color: #5a4e3a; cursor: pointer;
+}
+.btn.main { background: linear-gradient(135deg,#ffb74d,#fb8c00); color: #fff; }
+.btn:active { transform: scale(0.96); }
+.toprow { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
+.toprow a { color: #7a6e5a; font-size: 0.85rem; text-decoration: none; }
+
+/* 級のカード */
+.levels { display: grid; gap: 0.7rem; }
+.lv {
+  display: flex; align-items: center; gap: 0.8rem; background: #fff; border-radius: 1rem;
+  padding: 0.8rem 0.9rem; box-shadow: 0 2px 8px rgba(0,0,0,0.07); cursor: pointer; border: none; border-left: 8px solid #ccc; text-align: left; width: 100%; font-family: inherit; color: inherit;
+}
+.lv .ic { font-size: 2.2rem; width: 2.6rem; text-align: center; }
+.lv .nm { font-size: 1.1rem; font-weight: 800; }
+.lv .ds { font-size: 0.8rem; color: #8a7f6c; }
+.lv .pg { margin-left: auto; text-align: right; font-size: 0.8rem; color: #8a7f6c; white-space: nowrap; }
+.lv .pg b { color: #d68910; }
+.steps { display: flex; gap: 0.25rem; margin-top: 0.25rem; }
+.steps i { width: 0.7rem; height: 0.35rem; border-radius: 2px; background: #e4dccd; }
+.steps i.on { background: #fb8c00; }
+
+/* 問題の一覧 */
+.plist { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 0.6rem; }
+.pbtn {
+  background: #fff; border: none; border-radius: 0.8rem; padding: 0.6rem 0.2rem; cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.07); font-size: 0.95rem; font-weight: 800; color: #5a4e3a;
+}
+.pbtn small { display: block; font-weight: 600; font-size: 0.7rem; color: #8a7f6c; }
+.pbtn .st { display: block; font-size: 0.85rem; color: #f5a623; min-height: 1.1em; }
+
+/* 盤 */
+.info { text-align: center; margin: 0.2rem 0 0.4rem; }
+.info .ttl { font-weight: 800; }
+.info .left { font-size: 1.15rem; font-weight: 800; color: #c0392b; }
+.msg { text-align: center; min-height: 2.8em; font-size: 0.95rem; font-weight: 700; padding: 0.3rem; border-radius: 0.6rem; }
+.msg.good { background: #e3f4e1; color: #2e7d32; }
+.msg.bad { background: #fdecea; color: #c62828; }
+.hand { display: flex; gap: 0.4rem; justify-content: center; min-height: 3.4rem; align-items: center; margin: 0.3rem 0; }
+.hand .lbl { font-size: 0.75rem; color: #8a7f6c; margin-right: 0.3rem; }
+.board {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: #b98b54;
+  padding: 6px; border-radius: 10px; width: min(92vw, 330px); margin: 0 auto;
+}
+.cell {
+  aspect-ratio: 1 / 1; background: #f5deb3; border-radius: 6px; position: relative;
+  display: flex; align-items: center; justify-content: center; cursor: pointer; border: none;
+}
+.cell.enemyzone { background: #f1d3a4; }
+.cell.sel { outline: 4px solid #1e88e5; outline-offset: -4px; }
+.cell.dest::after {
+  content: ''; position: absolute; width: 28%; height: 28%; border-radius: 50%; background: rgba(30,136,229,0.45);
+}
+.cell.last { box-shadow: inset 0 0 0 4px rgba(255,152,0,0.75); }
+.cell.hint { animation: blink 0.6s ease-in-out 4; }
+@keyframes blink { 50% { background: #fff59d; } }
+.pc {
+  position: relative; width: 82%; height: 82%; border-radius: 12%; display: flex; align-items: center; justify-content: center;
+  font-size: clamp(1.8rem, 9vw, 2.6rem); box-shadow: 0 2px 3px rgba(0,0,0,0.25);
+}
+.pc.me { background: #e3f0ff; border: 3px solid #1e88e5; }
+.pc.op { background: #ffe3e3; border: 3px solid #e53935; }
+.pc .dot { position: absolute; width: 11%; height: 11%; border-radius: 50%; background: #8d6e63; }
+.handpc { width: 3rem; height: 3rem; font-size: 1.8rem; cursor: pointer; border: none; }
+.handpc .cnt { position: absolute; right: -6px; bottom: -6px; font-size: 0.7rem; background: #555; color: #fff; border-radius: 999px; padding: 0 0.3rem; }
+.handpc.sel { outline: 4px solid #1e88e5; }
+.ctrls { display: flex; gap: 0.5rem; justify-content: center; margin-top: 0.7rem; flex-wrap: wrap; }
+.badge { display: inline-block; font-size: 0.7rem; font-weight: 800; color: #fff; background: #8e24aa; padding: 0.05rem 0.45rem; border-radius: 999px; margin-left: 0.3rem; vertical-align: middle; }
+
+/* クリア */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: none; align-items: center; justify-content: center; z-index: 50; }
+.overlay.show { display: flex; }
+.card { background: #fff; border-radius: 1.2rem; padding: 1.4rem 1.2rem; width: min(88vw, 360px); text-align: center; }
+.card .big { font-size: 2.6rem; }
+.card .stars { font-size: 2rem; color: #f5a623; letter-spacing: 0.2rem; margin: 0.4rem 0; }
+.card p { margin-bottom: 0.8rem; }
+
+/* あそびかた */
+.rules { background: #fff; border-radius: 1rem; padding: 1rem; line-height: 1.7; font-size: 0.95rem; }
+.rules h2 { font-size: 1.05rem; margin: 0.8rem 0 0.3rem; }
+.rules h2:first-child { margin-top: 0; }
+.rules table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+.rules td { border-bottom: 1px solid #eee; padding: 0.3rem; vertical-align: middle; }
+.lvtable td:first-child { white-space: nowrap; }
+.credit { font-size: 0.72rem; color: #9a907e; text-align: center; margin-top: 1.2rem; line-height: 1.5; }
+</style>
+<link rel="stylesheet" href="../../_shared/a11y.css">
+</head>
+<body>
+
+<!-- ホーム -->
+<div class="screen show" id="home">
+  <div class="toprow"><a href="../../../">← ゲーム一覧</a><button class="btn" id="rulesBtn" type="button">あそびかた</button></div>
+  <h1>🦁 どうぶつ詰めしょうぎ</h1>
+  <p class="sub">王手をつづけて、あいてのライオンをつかまえよう！</p>
+  <div class="total" id="totalStars"></div>
+  <div class="levels" id="levels"></div>
+  <p class="credit">ルールは「どうぶつしょうぎ」（北尾まどか 考案）にしたがっています。<br>
+  問題は、すべての局面を調べた完全解析から選びました。3手詰め以上は、さいごの王手のほかは答えが1とおりしかないことを、コンピュータで確かめてあります。</p>
+</div>
+
+<!-- 問題の一覧 -->
+<div class="screen" id="levelScreen">
+  <div class="toprow"><button class="btn" id="backHome" type="button">← もどる</button><span id="levelTitle" style="font-weight:800"></span><span></span></div>
+  <p class="sub" id="levelDesc"></p>
+  <div class="plist" id="plist"></div>
+</div>
+
+<!-- 盤 -->
+<div class="screen" id="play">
+  <div class="toprow"><button class="btn" id="backLevel" type="button">← 問題</button><span class="ttl" id="pTitle"></span><span></span></div>
+  <div class="info"><div class="left" id="pLeft"></div></div>
+  <div class="hand" id="handB"></div>
+  <div class="board" id="board" role="grid" aria-label="盤"></div>
+  <div class="hand" id="handA"></div>
+  <div class="msg" id="msg"></div>
+  <div class="ctrls">
+    <button class="btn" id="hintBtn" type="button">💡 ヒント</button>
+    <button class="btn" id="retryBtn" type="button">↺ やりなおし</button>
+  </div>
+</div>
+
+<!-- あそびかた -->
+<div class="screen" id="rulesScreen">
+  <div class="toprow"><button class="btn" id="rulesBack" type="button">← もどる</button><span style="font-weight:800">あそびかた</span><span></span></div>
+  <div class="rules">
+    <h2>どんなゲーム？</h2>
+    <p>あなたは下がわ（青）です。あいて（赤・さかさま）の🦁ライオンをつかまえたら勝ち！</p>
+    <h2>詰めしょうぎのきまり</h2>
+    <p>あなたは毎回<b>「王手（おうて）」</b>をかけます。王手とは、あいてがなにもしなければ、<b>つぎにライオンを取れる手</b>のことです。
+    あいてはいちばん長くにげられるように動きます。王手をつづけて、さいごにライオンをつかまえましょう。</p>
+    <p>「◯手詰め」は、あなたが王手をかける回数です（さいごにライオンを取る手はかぞえません）。</p>
+    <h2>こまのうごき（点のある方向に1マス）</h2>
+    <table>
+      <tr><td>🦁 ライオン</td><td>まわり8方向どこでも</td></tr>
+      <tr><td>🦒 キリン</td><td>たて・よこ（4方向）</td></tr>
+      <tr><td>🐘 ゾウ</td><td>ななめ（4方向）</td></tr>
+      <tr><td>🐤 ヒヨコ</td><td>まえに1マスだけ</td></tr>
+      <tr><td>🐔 ニワトリ</td><td>ななめ後ろ以外の6方向</td></tr>
+    </table>
+    <h2>とくべつなルール</h2>
+    <p>・とったこまは「持ちごま」になり、あいているマスに打てます。<br>
+    ・ヒヨコが動いていちばん奥のマスに入るとニワトリになります（打ったヒヨコはなりません）。<br>
+    ・ニワトリを取ると、持ちごまはヒヨコにもどります。<br>
+    ・ライオンがいちばん奥のマスに入って、つぎに取られなければそれでも勝ち（トライ）。</p>
+    <h2>むずかしさ（級）</h2>
+    <table class="lvtable" id="lvTable"></table>
+    <h2>そうさ</h2>
+    <p>じぶんのこま（青）をタップ → 光ったマスをタップで動かします。持ちごまはタップしてから打つマスをタップ。
+    まちがえても大丈夫。💡ヒントも使えます。まちがい・ヒントなしで★3つ！</p>
+  </div>
+</div>
+
+<!-- クリア -->
+<div class="overlay" id="clear">
+  <div class="card">
+    <div class="big" id="clearIcon">🎉</div>
+    <h2 id="clearTitle">つかまえた！</h2>
+    <div class="stars" id="clearStars"></div>
+    <p id="clearMsg"></p>
+    <div class="ctrls">
+      <button class="btn" id="clearList" type="button">問題一覧</button>
+      <button class="btn main" id="clearNext" type="button">つぎの問題 →</button>
+    </div>
+  </div>
+</div>
+
+<script src="../../_shared/audio.js"></script>
+<script src="../core.js"></script>
+<script src="../puzzles.js"></script>
+<script>
+const C = window.TsumeCore;
+const PUZZLES = window.TSUME_PUZZLES || [];
+const REC_KEY = 'animaltsume_record';
+const BEST_KEY = 'animaltsume_best';   // ホーム画面のカードに出す★の合計
+
+let rec = loadRec();
+let session = null;
+let sel = null;          // { sq } or { hand: pieceType }
+let busy = false;
+let hintMove = null;
+let lastMove = null;
+let curLevel = 1;
+let viewState = null;   // 応手の前に見せる盤（なければ session.state）
+
+function loadRec() { try { return C.parseRecord(localStorage.getItem(REC_KEY)); } catch (e) { return {}; } }
+function saveRec() {
+  try {
+    localStorage.setItem(REC_KEY, JSON.stringify(rec));
+    localStorage.setItem(BEST_KEY, String(C.totalStars(rec)));
+  } catch (e) {}
+}
+function $(id) { return document.getElementById(id); }
+function show(id) {
+  ['home', 'levelScreen', 'play', 'rulesScreen'].forEach(s => $(s).classList.remove('show'));
+  $(id).classList.add('show');
+}
+function sfx(kind) {
+  const A = window.AudioFX; if (!A) return;
+  if (kind === 'ok') { A.tone(660, 0.08, 'triangle', 0.15); A.tone(880, 0.1, 'triangle', 0.15, 0.08); }
+  else if (kind === 'bad') A.tone(220, 0.18, 'square', 0.08);
+  else if (kind === 'win') [523, 659, 784, 1047].forEach((f, i) => A.tone(f, 0.16, 'triangle', 0.18, i * 0.1));
+  else if (kind === 'tap') A.tone(520, 0.04, 'sine', 0.08);
+}
+function starText(n) { return '★'.repeat(n) + '☆'.repeat(3 - n); }
+
+/* ---------- ホーム ---------- */
+function renderHome() {
+  $('totalStars').textContent = '⭐ あつめた★ ' + C.totalStars(rec) + ' / ' + PUZZLES.length * 3;
+  const box = $('levels'); box.innerHTML = '';
+  C.LEVELS.forEach(L => {
+    const pg = C.levelProgress(rec, PUZZLES, L.level);
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'lv'; b.style.borderLeftColor = L.color;
+    const steps = [1, 2, 3, 4, 5, 6].map(i => '<i class="' + (i <= L.level ? 'on' : '') + '"></i>').join('');
+    b.innerHTML = '<span class="ic">' + L.icon + '</span><span><span class="nm">' + L.name + '</span>' +
+      '<span class="ds"> ' + L.moves + '</span><br><span class="ds">めやす: ' + L.who + '</span>' +
+      '<span class="steps" aria-label="むずかしさ ' + L.level + ' / 6">' + steps + '</span></span>' +
+      '<span class="pg">' + pg.solved + ' / ' + pg.total + ' 問<br><b>★' + pg.stars + '</b> / ' + pg.maxStars + '</span>';
+    b.onclick = () => { sfx('tap'); openLevel(L.level); };
+    box.appendChild(b);
+  });
+}
+function showHome() { renderHome(); show('home'); }
+
+/* ---------- 問題の一覧 ---------- */
+function openLevel(level) {
+  curLevel = level;
+  const L = C.LEVELS.find(x => x.level === level);
+  $('levelTitle').textContent = L.icon + ' ' + L.name;
+  $('levelDesc').textContent = L.moves + '・めやす: ' + L.who + '（むずかしさ ' + L.level + ' / 6）';
+  const box = $('plist'); box.innerHTML = '';
+  PUZZLES.filter(p => p.level === level).forEach((p, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'pbtn';
+    const st = rec[p.id] || 0;
+    b.innerHTML = '第' + (i + 1) + '問<small>' + p.n + '手詰め' + (p.hirameki ? ' ✨' : '') + '</small>' +
+      '<span class="st">' + (st ? starText(st) : '') + '</span>';
+    b.onclick = () => { sfx('tap'); startPuzzle(p.id); };
+    box.appendChild(b);
+  });
+  show('levelScreen');
+}
+
+/* ---------- 盤 ---------- */
+function startPuzzle(id) {
+  const pz = PUZZLES.find(p => p.id === id);
+  if (!pz) return;
+  session = C.newSession(pz);
+  sel = null; busy = false; hintMove = null; lastMove = null; viewState = null;
+  const list = PUZZLES.filter(p => p.level === pz.level);
+  const L = C.LEVELS.find(x => x.level === pz.level);
+  $('pTitle').innerHTML = L.icon + ' ' + L.name + ' 第' + (list.indexOf(pz) + 1) + '問' + (pz.hirameki ? '<span class="badge">✨ひらめき</span>' : '');
+  setMsg(pz.n === 1 ? '王手をかけよう！どうにげても、つぎにライオンがとれる手があるよ。' : '王手をかけつづけて、ライオンをつかまえよう！', '');
+  $('clear').classList.remove('show');
+  show('play');
+  render();
+}
+function setMsg(t, kind) { const m = $('msg'); m.textContent = t; m.className = 'msg' + (kind ? ' ' + kind : ''); }
+function pieceEl(v, extraCls) {
+  const d = document.createElement('div');
+  d.className = 'pc ' + (v > 0 ? 'me' : 'op') + (extraCls ? ' ' + extraCls : '');
+  d.textContent = C.EMOJI[Math.abs(v)];
+  // 動ける方向の点。絵はどちらも正立のまま（小さい子にも何の動物か分かるように）、あいての駒は点だけ上下左右を反転
+  const dirs = { 1: [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]], 2: [[-1,0],[0,-1],[0,1],[1,0]],
+    3: [[-1,-1],[-1,1],[1,-1],[1,1]], 4: [[-1,0]], 5: [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,0]] }[Math.abs(v)];
+  dirs.forEach(([r0, c0]) => {
+    const r = v > 0 ? r0 : -r0, c = v > 0 ? c0 : -c0;
+    const dot = document.createElement('span'); dot.className = 'dot';
+    dot.style.top = (r < 0 ? '4%' : r > 0 ? '85%' : '44.5%');
+    dot.style.left = (c < 0 ? '4%' : c > 0 ? '85%' : '44.5%');
+    d.appendChild(dot);
+  });
+  return d;
+}
+function render() {
+  const s = viewState || session.state;
+  const pz = session.pz;
+  const left = C.movesLeft(session);
+  $('pLeft').textContent = session.phase === 'solved' ? 'クリア！' :
+    session.phase === 'finish' ? 'さいご！ライオンをつかまえよう' : 'あと ' + left + ' 手で詰み（' + pz.n + '手詰め）';
+  const legal = session.phase === 'solved' || busy ? [] : C.legalMoves(s);
+  const dests = new Set();
+  if (sel) legal.forEach(m => {
+    if (sel.hand ? m.drop === sel.hand : (!m.drop && m.from === sel.sq)) dests.add(m.to);
+  });
+  const hintSq = new Set();
+  if (hintMove) { if (hintMove.drop) hintSq.add(hintMove.to); else { hintSq.add(hintMove.from); hintSq.add(hintMove.to); } }
+  const bd = $('board'); bd.innerHTML = '';
+  for (let sq = 0; sq < 12; sq++) {
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    let cls = 'cell';
+    if (sq < 3) cls += ' enemyzone';
+    if (sel && sel.sq === sq) cls += ' sel';
+    if (dests.has(sq)) cls += ' dest';
+    if (lastMove && lastMove.to === sq) cls += ' last';
+    if (hintSq.has(sq)) cls += ' hint';
+    cell.className = cls;
+    const v = s.board[sq];
+    cell.setAttribute('aria-label', 'マス' + (sq + 1) + (v ? (v > 0 ? ' あなたの' : ' あいての') + C.NAME[Math.abs(v)] : ' あき'));
+    if (v) cell.appendChild(pieceEl(v));
+    cell.onclick = () => tapSquare(sq);
+    bd.appendChild(cell);
+  }
+  renderHand('handA', s.handA, 1);
+  renderHand('handB', s.handB, -1);
+}
+function renderHand(id, hand, side) {
+  const box = $(id); box.innerHTML = '';
+  const lbl = document.createElement('span'); lbl.className = 'lbl';
+  lbl.textContent = side > 0 ? 'あなたの持ちごま' : 'あいての持ちごま';
+  box.appendChild(lbl);
+  let any = false;
+  C.HAND_PIECES.forEach((pt, i) => {
+    if (!hand[i]) return;
+    any = true;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'handpc ' + pieceEl(pt * side).className + (sel && sel.hand === pt && side > 0 ? ' sel' : '');
+    b.textContent = C.EMOJI[pt];
+    if (hand[i] > 1) { const c = document.createElement('span'); c.className = 'cnt'; c.textContent = '×' + hand[i]; b.appendChild(c); }
+    if (side > 0) b.onclick = () => tapHand(pt);
+    box.appendChild(b);
+  });
+  if (!any) { const n = document.createElement('span'); n.className = 'lbl'; n.textContent = 'なし'; box.appendChild(n); }
+}
+function tapHand(pt) {
+  if (!session || busy || session.phase === 'solved') return;
+  sfx('tap');
+  sel = (sel && sel.hand === pt) ? null : { hand: pt };
+  render();
+}
+function tapSquare(sq) {
+  if (!session || busy || session.phase === 'solved') return;
+  const s = session.state;
+  const v = s.board[sq];
+  if (sel) {
+    const m = sel.hand ? { drop: sel.hand, to: sq } : { from: sel.sq, to: sq };
+    const legal = C.legalMoves(s).some(x => C.sameMove(x, m));
+    if (legal) { tryMove(m); return; }
+  }
+  if (v > 0) { sfx('tap'); sel = (sel && sel.sq === sq) ? null : { sq }; render(); return; }
+  sel = null; render();
+}
+function tryMove(m) {
+  sel = null; hintMove = null;
+  const r = C.play(session, m);
+  if (r.kind === 'solved') {
+    lastMove = m; sfx('win'); render(); onSolved(r.winType); return;
+  }
+  if (r.kind === 'ok') {
+    sfx('ok');
+    // 自分の手だけ指した盤をいったん見せてから、あいての応手を指す
+    lastMove = m;
+    viewState = C.applyMove(session.history[session.history.length - 1], m).state;
+    busy = true;
+    render();
+    setMsg('王手！ あいてはにげる…', 'good');
+    setTimeout(() => {
+      busy = false; viewState = null; lastMove = r.reply;
+      render();
+      setMsg(r.finish ? 'もうにげられない！ ライオンをつかまえよう！' :
+        'いいね！ あと ' + C.movesLeft(session) + ' 手。王手をつづけよう。', 'good');
+    }, 650);
+    return;
+  }
+  sfx('bad');
+  if (r.kind === 'notCheck') setMsg('それは王手になっていないよ。つぎにライオンをとれる手をさがそう。', 'bad');
+  else if (r.kind === 'wrong' && r.needWin) setMsg('ライオンをつかまえられる手があるよ！', 'bad');
+  else if (r.kind === 'wrong') setMsg('おしい！ それだとライオンににげられちゃう。ほかの王手をさがそう。', 'bad');
+  else setMsg('そこには動けないよ。', 'bad');
+  render();
+}
+function onSolved(winType) {
+  const st = C.stars(session);
+  rec = C.recordResult(rec, session.pz.id, st);
+  saveRec();
+  $('clearIcon').textContent = winType === 'try' ? '🏁' : '🎉';
+  $('clearTitle').textContent = winType === 'try' ? 'トライ成功！' : 'ライオンをつかまえた！';
+  $('clearStars').textContent = starText(st);
+  const k = session.mistakes + session.hints;
+  $('clearMsg').textContent = k === 0 ? 'ノーミスでクリア！すごい！' : 'まちがい・ヒント ' + k + ' 回でクリア。★3をめざそう！';
+  const nx = nextPuzzle();
+  $('clearNext').textContent = nx ? 'つぎの問題 →' : 'ホームへ';
+  $('clear').classList.add('show');
+  setMsg('クリア！', 'good');
+}
+function nextPuzzle() {
+  const i = PUZZLES.findIndex(p => p.id === session.pz.id);
+  return PUZZLES[i + 1] || null;
+}
+function useHintBtn() {
+  if (!session || busy || session.phase === 'solved') return;
+  hintMove = C.useHint(session);
+  sel = null;   // 光らせるだけ。選ぶのは子ども自身（選んだ状態でタップすると選択が外れてしまうため）
+  setMsg(hintMove && hintMove.drop ? '💡 光っているマスに、持ちごまの' + C.NAME[hintMove.drop] + 'を打ってみよう。' : '💡 光っているこまを、光っているマスへ動かしてみよう。', '');
+  render();
+}
+
+/* ---------- あそびかた ---------- */
+function renderRules() {
+  const t = $('lvTable'); t.innerHTML = '';
+  C.LEVELS.forEach(L => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + L.icon + ' ' + L.name + '</td><td>' + L.moves + '<br><small>めやす: ' + L.who + '</small></td>';
+    t.appendChild(tr);
+  });
+}
+
+/* ---------- ボタン ---------- */
+$('rulesBtn').onclick = () => { renderRules(); show('rulesScreen'); };
+$('rulesBack').onclick = () => showHome();
+$('backHome').onclick = () => showHome();
+$('backLevel').onclick = () => openLevel(session ? session.pz.level : curLevel);
+$('hintBtn').onclick = () => useHintBtn();
+$('retryBtn').onclick = () => { if (session) startPuzzle(session.pz.id); };
+$('clearList').onclick = () => { $('clear').classList.remove('show'); openLevel(session.pz.level); };
+$('clearNext').onclick = () => {
+  $('clear').classList.remove('show');
+  const nx = nextPuzzle();
+  if (nx) startPuzzle(nx.id); else showHome();
+};
+
+if (window.AudioFX) window.AudioFX.mountButton();
+// #p=問題番号 で直接その問題を開く（共有用）
+(function () {
+  const m = /p=(\d+)/.exec((typeof location !== 'undefined' && location.hash) || '');
+  if (m && PUZZLES.some(p => p.id === Number(m[1]))) startPuzzle(Number(m[1])); else showHome();
+})();
+</script>
+</body>
+</html>
