@@ -150,7 +150,7 @@ button { font-family: inherit; }
     <p>あなたは下がわ（青）です。あいて（赤・さかさま）の🦁ライオンをつかまえたら勝ち！</p>
     <h2>詰めしょうぎのきまり</h2>
     <p>あなたは毎回<b>「王手（おうて）」</b>をかけます。王手とは、あいてがなにもしなければ、<b>つぎにライオンを取れる手</b>のことです。
-    あいてはいちばん長くにげられるように動きます。王手をつづけて、さいごにライオンをつかまえましょう。</p>
+    あいてはいちばん長くにげられるように動きます。王手をつづけて、さいごにライオンをつかまえるか、トライ（ライオンがいちばん奥のマスに入って、取られない）できたら勝ちです。</p>
     <p>「◯手詰め」は、あなたが王手をかける回数です（さいごにライオンを取る手はかぞえません）。</p>
     <h2>こまのうごき（点のある方向に1マス）</h2>
     <table>
@@ -305,7 +305,7 @@ function render() {
   const pz = session.pz;
   const left = C.movesLeft(session);
   $('pLeft').textContent = session.phase === 'solved' ? 'クリア！' :
-    session.phase === 'finish' ? 'さいご！ライオンをつかまえよう' : busy ? '…' : 'あと ' + left + ' 手で詰み（' + pz.n + '手詰め）';
+    session.phase === 'finish' ? 'さいご！ライオンをつかまえるか、トライしよう' : busy ? '…' : 'あと ' + left + ' 手で詰み（' + pz.n + '手詰め）';
   const legal = session.phase === 'solved' || busy ? [] : C.legalMoves(s);
   const dests = new Set();
   if (sel) legal.forEach(m => {
@@ -387,14 +387,14 @@ function tryMove(m) {
     setTimeout(() => {
       busy = false; viewState = null; lastMove = r.reply;
       render();
-      setMsg(r.finish ? 'もうにげられない！ ライオンをつかまえよう！' :
+      setMsg(r.finish ? 'もうにげられない！ ライオンをつかまえるか、トライしよう！' :
         (r.alt ? 'それでも詰むよ！（作者とはべつの手順）' : 'いいね！') + ' あと ' + C.movesLeft(session) + ' 手。王手をつづけよう。', 'good');
     }, 650);
     return;
   }
   sfx('bad');
   if (r.kind === 'notCheck') setMsg('それは王手になっていないよ。つぎにライオンをとれる手をさがそう。', 'bad');
-  else if (r.kind === 'wrong' && r.needWin) setMsg('ライオンをつかまえられる手があるよ！', 'bad');
+  else if (r.kind === 'wrong' && r.needWin) setMsg('ライオンをつかまえるか、トライできる手があるよ！', 'bad');
   else if (r.kind === 'wrong') setMsg('おしい！ それだとライオンににげられちゃう。ほかの王手をさがそう。', 'bad');
   else setMsg('そこには動けないよ。', 'bad');
   render();
